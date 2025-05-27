@@ -1,154 +1,34 @@
 // src/components/dashboard/ProgressTracker.tsx
-// This component visualizes the user's progress towards their fitness goals.
-// It fetches user profile data and goals from Supabase and displays progress
-// for metrics like weight and calorie targets.
-
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
   Box,
   Heading,
   Text,
   VStack,
   HStack,
-  Progress,
-  Stat,
-  StatLabel,
-  StatHelpText,
   SimpleGrid,
   Icon,
   Divider,
-  useTheme,
 } from '@chakra-ui/react';
-import { FaWeight, FaFire, FaChartLine } from 'react-icons/fa';
-import { supabase } from '../../services/supabase';
-import { useAuth } from '../../hooks/useAuth';
-import { useErrorHandling } from '../../hooks/useErrorHandling';
-import LoadingSpinner from '../shared/LoadingSpinner';
+import { FaWeight, FaFire } from 'react-icons/fa';
 
-interface UserProfile {
-  weightKg: number;
-  heightCm: number;
+interface ProgressData {
+  currentWeight?: number | null;
+  targetWeight?: number | null;
+  targetCalories?: number | null;
 }
 
-interface UserGoal {
-  targetWeightKg?: number;
-  targetCalories?: number;
+interface ProgressTrackerProps {
+  data?: ProgressData | null;
 }
 
-const ProgressTracker: React.FC = () => {
-  const { user, isAuthReady } = useAuth();
-  const { handleError } = useErrorHandling();
-  const theme = useTheme();
-
-  const [currentWeight, setCurrentWeight] = useState<number | null>(null);
-  const [targetWeight, setTargetWeight] = useState<number | null>(null);
-  const [targetCalories, setTargetCalories] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchProgressData = async () => {
-      if (!user?.id || !isAuthReady) {
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const { data: profileData, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('weightKg')
-          .eq('user_id', user.id)
-          .single();
-
-        if (profileError && profileError.code !== 'PGRST116') {
-          throw profileError;
-        }
-        setCurrentWeight(profileData?.weightKg || null);
-
-        const { data: goalData, error: goalError } = await supabase
-          .from('user_goals')
-          .select('targetWeightKg, targetCalories')
-          .eq('user_id', user.id)
-          .single();
-
-        if (goalError && goalError.code !== 'PGRST116') {
-          throw goalError;
-        }
-        setTargetWeight(goalData?.targetWeightKg || null);
-        setTargetCalories(goalData?.targetCalories || null);
-
-      } catch (err) {
-        const errorMessage = handleError(err, 'Failed to fetch progress data');
-        setError(errorMessage);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchProgressData();
-
-    const profileSubscription = supabase
-      .channel('public:user_profiles')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'user_profiles',
-          filter: `user_id=eq.${user?.id}`,
-        },
-        (payload) => {
-          if (payload.new) {
-            setCurrentWeight((payload.new as UserProfile).weightKg);
-          }
-        }
-      )
-      .subscribe();
-
-    const goalSubscription = supabase
-      .channel('public:user_goals')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'user_goals',
-          filter: `user_id=eq.${user?.id}`,
-        },
-        (payload) => {
-          if (payload.new) {
-            setTargetWeight((payload.new as UserGoal).targetWeightKg || null);
-            setTargetCalories((payload.new as UserGoal).targetCalories || null);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      profileSubscription.unsubscribe();
-      goalSubscription.unsubscribe();
-    };
-
-  }, [user?.id, isAuthReady, handleError]);
-
-  if (isLoading) {
-    return <LoadingSpinner message="Tracking your progress..." />;
-  }
-
-  if (error) {
-    return (
-      <Box textAlign="center" p={8} bg="red.50" borderRadius="lg" color="red.700">
-        <Text fontSize="lg">Error: {error}</Text>
-        <Text fontSize="md">Could not load your progress. Please try again.</Text>
-      </Box>
-    );
-  }
+const ProgressTracker: React.FC<ProgressTrackerProps> = ({ data }) => {
+  const currentWeight = data?.currentWeight;
+  const targetWeight = data?.targetWeight;
+  const targetCalories = data?.targetCalories;
 
   let weightProgress = 0;
-  if (currentWeight !== null && targetWeight !== null) {
+  if (currentWeight !== null && targetWeight !== null && currentWeight && targetWeight) {
     if (currentWeight === targetWeight) {
       weightProgress = 100;
     } else if (currentWeight > targetWeight) {
@@ -189,17 +69,17 @@ const ProgressTracker: React.FC = () => {
           <Box p={4} bg="brand.100" borderRadius="md" boxShadow="sm">
             <HStack mb={2}>
               <Icon as={FaWeight} color="accent.500" w={6} h={6} />
-              <StatLabel color="text.light" fontSize="lg" fontWeight="semibold">Weight Progress</StatLabel>
+              <Text color="text.light" fontSize="lg" fontWeight="semibold">Weight Progress</Text>
             </HStack>
             <Box>
               <Text fontSize="4xl" color="accent.600" fontWeight="bold">
-                {currentWeight !== null ? `${currentWeight} kg` : '--'}
+                {currentWeight !== null && currentWeight ? `${currentWeight} kg` : '--'}
               </Text>
               <Text color="text.light" fontSize="sm">
-                Target: {targetWeight !== null ? `${targetWeight} kg` : 'Not Set'}
+                Target: {targetWeight !== null && targetWeight ? `${targetWeight} kg` : 'Not Set'}
               </Text>
             </Box>
-            {targetWeight !== null && currentWeight !== null && (
+            {targetWeight !== null && currentWeight !== null && targetWeight && currentWeight && (
               <Box
                 mt={3}
                 h="8px"
@@ -215,24 +95,24 @@ const ProgressTracker: React.FC = () => {
                 />
               </Box>
             )}
-            {currentWeight === null && <Text color="text.light" fontSize="sm">Log your current weight in your profile.</Text>}
-            {targetWeight === null && <Text color="text.light" fontSize="sm">Set a target weight in Goal Settings.</Text>}
+            {!currentWeight && <Text color="text.light" fontSize="sm">Log your current weight in your profile.</Text>}
+            {!targetWeight && <Text color="text.light" fontSize="sm">Set a target weight in Goal Settings.</Text>}
           </Box>
 
           <Box p={4} bg="brand.100" borderRadius="md" boxShadow="sm">
             <HStack mb={2}>
               <Icon as={FaFire} color="accent.500" w={6} h={6} />
-              <StatLabel color="text.light" fontSize="lg" fontWeight="semibold">Calorie Target</StatLabel>
+              <Text color="text.light" fontSize="lg" fontWeight="semibold">Calorie Target</Text>
             </HStack>
             <Box>
               <Text fontSize="4xl" color="accent.600" fontWeight="bold">
-                {targetCalories !== null ? `${targetCalories} kcal` : '--'}
+                {targetCalories !== null && targetCalories ? `${targetCalories} kcal` : '--'}
               </Text>
               <Text color="text.light" fontSize="sm">
                 Daily Goal
               </Text>
             </Box>
-            {targetCalories !== null && (
+            {targetCalories !== null && targetCalories && (
               <Box
                 mt={3}
                 h="8px"
@@ -248,10 +128,7 @@ const ProgressTracker: React.FC = () => {
                 />
               </Box>
             )}
-            {targetCalories === null && <Text color="text.light" fontSize="sm">Set a daily calorie target in Goal Settings.</Text>}
-            <Text fontSize="sm" color="text.light" mt={2}>
-              (Note: This progress requires daily calorie logging and aggregation.)
-            </Text>
+            {!targetCalories && <Text color="text.light" fontSize="sm">Set a daily calorie target in Goal Settings.</Text>}
           </Box>
         </SimpleGrid>
 

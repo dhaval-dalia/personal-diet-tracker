@@ -24,13 +24,48 @@ export const signupSchema = z.object({
 // --- Onboarding Schemas ---
 
 export const onboardingSchema = z.object({
-  fullName: z.string().min(1, 'Full Name is required'),
-  age: z.number().min(10, 'Age must be at least 10').max(120, 'Age seems too high').int('Age must be an integer'),
-  gender: z.enum(['male', 'female', 'other'], { message: 'Please select a gender' }),
-  heightCm: z.number().min(50, 'Height must be at least 50 cm').max(250, 'Height seems too high').int('Height must be an integer'),
-  weightKg: z.number().min(20, 'Weight must be at least 20 kg').max(300, 'Weight seems too high'),
-  activityLevel: z.enum(['sedentary', 'lightly_active', 'moderately_active', 'very_active', 'extra_active'], { message: 'Please select an activity level' }),
-  goal: z.enum(['lose_weight', 'maintain_weight', 'gain_weight', 'build_muscle'], { message: 'Please select a goal' }),
+  fullName: z.string().min(2, 'Name must be at least 2 characters'),
+  age: z.number().min(10).max(120),
+  gender: z.enum(['male', 'female', 'other']),
+  heightCm: z.number().min(50).max(250),
+  weightKg: z.number().min(20).max(300),
+  activityLevel: z.enum([
+    'sedentary',
+    'lightly_active',
+    'moderately_active',
+    'very_active',
+    'extra_active'
+  ]),
+  goal: z.enum([
+    'lose_weight',
+    'maintain_weight',
+    'gain_weight',
+    'build_muscle'
+  ]),
+  // New fields
+  dietaryRestrictions: z.array(z.string()).optional(),
+  allergies: z.array(z.string()).optional(),
+  medicalConditions: z.array(z.string()).optional(),
+  preferredMealTimes: z.record(z.string()).optional(),
+  fitnessLevel: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
+  preferredWorkoutDays: z.array(z.string()).optional(),
+  // Goal specific fields
+  targetWeight: z.number().min(20).max(300).optional(),
+  targetCalories: z.number().min(500).max(5000).optional(),
+  targetProteinRatio: z.number().min(0).max(100).optional(),
+  targetCarbsRatio: z.number().min(0).max(100).optional(),
+  targetFatRatio: z.number().min(0).max(100).optional(),
+  targetProteinTarget: z.number().min(0).optional(),
+  targetCarbTarget: z.number().min(0).optional(),
+  targetFatTarget: z.number().min(0).optional(),
+  targetTimeframe: z.string().optional(),
+  specificObjectives: z.string().optional(),
+  progressTrackingPreference: z.string().optional(),
+  targetDate: z.date().optional(),
+  weeklyWorkoutGoal: z.number().min(0).max(7).optional(),
+  waterIntakeGoal: z.number().min(0).max(10).optional(),
+  sleepGoal: z.number().min(4).max(12).optional(),
+  mealPrepPreference: z.enum(['daily', 'weekly', 'none']).optional()
 });
 
 // --- Meal Logging Schemas ---

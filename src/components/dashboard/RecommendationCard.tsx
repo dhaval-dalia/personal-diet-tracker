@@ -1,27 +1,41 @@
 // src/components/dashboard/RecommendationCard.tsx
-// This component displays a single personalized recommendation to the user.
-// It's designed to be reusable and visually appealing, fitting the pastel theme.
-
 import React from 'react';
 import { Box, Heading, Text, Icon, VStack, HStack } from '@chakra-ui/react';
-import { FaLightbulb, FaUtensils, FaRunning } from 'react-icons/fa'; // Icons for different recommendation types
+import { FaLightbulb, FaUtensils, FaRunning } from 'react-icons/fa';
 
-// Define the interface for a single recommendation
 interface Recommendation {
   id: string;
   userId: string;
-  type: 'nutrition' | 'exercise' | 'general'; // Type of recommendation
+  type: 'nutrition' | 'exercise' | 'general';
   title: string;
   content: string;
-  createdAt: string; // ISO date string
+  createdAt: string;
 }
 
 interface RecommendationCardProps {
-  recommendation: Recommendation;
+  recommendation?: Recommendation | null;
 }
 
 const RecommendationCard: React.FC<RecommendationCardProps> = ({ recommendation }) => {
-  // Determine icon based on recommendation type
+  if (!recommendation) {
+    return (
+      <Box
+        p={6}
+        borderRadius="lg"
+        bg="whiteAlpha.700"
+        boxShadow="md"
+        borderColor="brand.200"
+        borderWidth={1}
+        width="100%"
+        textAlign="center"
+      >
+        <Text color="gray.500" fontStyle="italic">
+          No recommendations available yet. Keep logging your meals and activities to get personalized suggestions!
+        </Text>
+      </Box>
+    );
+  }
+
   const getIcon = (type: Recommendation['type']) => {
     switch (type) {
       case 'nutrition':
@@ -40,12 +54,12 @@ const RecommendationCard: React.FC<RecommendationCardProps> = ({ recommendation 
     <Box
       p={6}
       borderRadius="lg"
-      bg="whiteAlpha.700" // Light, slightly transparent background
+      bg="whiteAlpha.700"
       boxShadow="md"
       borderColor="brand.200"
       borderWidth={1}
       width="100%"
-      _hover={{ boxShadow: 'lg', transform: 'translateY(-2px)' }} // Subtle hover effect
+      _hover={{ boxShadow: 'lg', transform: 'translateY(-2px)' }}
       transition="all 0.2s ease-in-out"
     >
       <VStack align="flex-start" gap={3}>

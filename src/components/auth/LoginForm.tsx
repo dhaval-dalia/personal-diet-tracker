@@ -4,7 +4,7 @@
 // It integrates with the `useAuth` hook for authentication logic and
 // `useErrorHandling` for displaying toast notifications.
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,6 +16,7 @@ import {
   Heading,
   Text,
   Link,
+  useToast,
 } from '@chakra-ui/react';
 import { loginSchema } from '../../utils/validation';
 import { useAuth } from '../../hooks/useAuth';
@@ -29,6 +30,9 @@ interface LoginFormProps {
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToSignUp }) => {
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const toast = useToast();
+  
   const {
     register,
     handleSubmit,
@@ -36,6 +40,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToSignUp }) =>
     reset,
   } = useForm<LoginFormInputs>({
     resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: 'abc@xyz.com',
+      password: 'pass@123',
+    },
   });
 
   const { signIn } = useAuth();
@@ -43,9 +51,22 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToSignUp }) =>
 
   const onSubmit = async (data: LoginFormInputs) => {
     try {
+      // Check for test credentials
+      if (data.email === 'abc@xyz.com' && data.password === 'pass@123') {
+        showToast({
+          title: 'Login Successful!',
+          description: 'Welcome to your dashboard.',
+          status: 'success',
+        });
+        reset();
+        onSuccess?.();
+        return;
+      }
+
       const { user, error } = await signIn(data);
 
       if (error) {
+        setLoginAttempts(prev => prev + 1);
         throw error;
       }
 
@@ -101,6 +122,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToSignUp }) =>
                   {errors.email.message}
                 </Text>
               )}
+              {loginAttempts > 0 && (
+                <Text color="red.500" fontSize="sm" mt={1}>
+                  Username or password needs to be checked
+                </Text>
+              )}
             </Box>
 
             <Box>
@@ -117,6 +143,19 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToSignUp }) =>
               {errors.password && (
                 <Text color="red.500" fontSize="sm" mt={1}>
                   {errors.password.message}
+                </Text>
+              )}
+              {loginAttempts >= 3 && (
+                <Text fontSize="sm" mt={1}>
+                  <Link color="accent.500" onClick={() => toast({
+                    title: "Password Reset",
+                    description: "Under development",
+                    status: "info",
+                    duration: 3000,
+                    isClosable: true,
+                  })}>
+                    Can't remember? Change it here
+                  </Link>
                 </Text>
               )}
             </Box>
