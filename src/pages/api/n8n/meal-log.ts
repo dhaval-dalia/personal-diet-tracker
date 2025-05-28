@@ -12,7 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // Ensure the n8n webhook URL is configured
-  const n8nWebhookUrl = N8N_WEBHOOK_URLS.MEAL_LOGGING;
+  const n8nWebhookUrl = N8N_WEBHOOK_URLS.MEAL_LOG;
   if (!n8nWebhookUrl) {
     console.error('N8N_MEAL_LOGGING_WEBHOOK_URL is not set in environment variables!');
     return res.status(500).json({ message: 'Server configuration error: n8n webhook URL missing.' });
