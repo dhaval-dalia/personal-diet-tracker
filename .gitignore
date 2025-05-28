@@ -8,8 +8,8 @@ node_modules
 out/
 
 # Local environment variables
-.env.local
-.env.*.local
+#.env.local
+#.env.*.local
 
 # log files
 npm-debug.log*
