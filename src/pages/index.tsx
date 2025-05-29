@@ -1,17 +1,51 @@
 // src/pages/index.tsx
-// This is the root page of your Next.js application.
-// In this setup, the main application logic and routing are handled
-// within the `AppContent` component (defined in src/App.tsx).
-// This page simply serves as the entry point to render the `AppContent`.
+'use client';
 
-import React from 'react';
-import AppCon from '../App'; // Import the main AppContent component
+import React, { useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { Box, Text } from '@chakra-ui/react';
+import AppCon from '../App';
+import LoginForm from '@/components/auth/LoginForm';
+import SignUpForm from '@/components/auth/SignUpForm';
 
 const HomePage: React.FC = () => {
+  const { user, isAuthReady } = useAuth();
+  const [showSignUp, setShowSignUp] = useState(false);
+
+  // If user is authenticated, show the main app
+  if (user) {
+    return <AppCon />;
+  }
+
+  // If auth is not ready, show loading
+  if (!isAuthReady) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
+        <Text>Loading...</Text>
+      </Box>
+    );
+  }
+
+  // Show authentication forms
   return (
-    // AppContent handles all the conditional rendering (login, onboarding, dashboard)
-    // based on authentication and onboarding status.
-    <AppCon />
+    <Box minHeight="100vh" bg="gray.50" py={8}>
+      {showSignUp ? (
+        <SignUpForm 
+          onSuccess={() => {
+            // Optionally switch to login after successful signup
+            setShowSignUp(false);
+          }}
+          onSwitchToLogin={() => setShowSignUp(false)}
+        />
+      ) : (
+        <LoginForm 
+          onSuccess={() => {
+            // User will be automatically redirected when auth state changes
+          }}
+          onSwitchToSignUp={() => setShowSignUp(true)}
+        />
+      )}
+    </Box>
   );
 };
 

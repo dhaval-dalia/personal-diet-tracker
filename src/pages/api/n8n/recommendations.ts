@@ -4,7 +4,6 @@
 // and securely forwards it to the n8n webhook URL.
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { N8N_WEBHOOK_URLS } from '../../../utils/constants'; // Import n8n webhook URLs
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Ensure the request method is POST (or GET, depending on your n8n webhook setup)
@@ -13,7 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // Ensure the n8n webhook URL is configured
-  const n8nWebhookUrl = N8N_WEBHOOK_URLS.RECOMMENDATIONS;
+  const n8nWebhookUrl = process.env.N8N_RECOMMENDATIONS_WEBHOOK_URL || 'http://localhost:5678/webhook/recommendations';
   if (!n8nWebhookUrl) {
     console.error('N8N_RECOMMENDATIONS_WEBHOOK_URL is not set in environment variables!');
     return res.status(500).json({ message: 'Server configuration error: n8n webhook URL missing.' });

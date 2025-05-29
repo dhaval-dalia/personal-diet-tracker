@@ -54,6 +54,59 @@ const AppCon: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>('login');
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
   const [isLoadingOnboardingStatus, setIsLoadingOnboardingStatus] = useState(true);
+  const [userGoals, setUserGoals] = useState<any>(null);
+
+  // Fetch user goals when user changes
+  useEffect(() => {
+    const fetchUserGoals = async () => {
+      if (!user?.id) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('user_goals')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error fetching goals:', error);
+          return;
+        }
+
+        if (data) {
+          setUserGoals(data);
+        }
+      } catch (err) {
+        console.error('Error in fetchUserGoals:', err);
+      }
+    };
+
+    fetchUserGoals();
+
+    // Subscribe to real-time updates
+    const goalsSubscription = supabase
+      .channel('public:user_goals')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_goals',
+          filter: `user_id=eq.${user?.id}`,
+        },
+        (payload) => {
+          console.log('Goals updated in App:', payload);
+          if (payload.new) {
+            setUserGoals(payload.new);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      goalsSubscription.unsubscribe();
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     const checkOnboardingStatus = async () => {
@@ -127,7 +180,7 @@ const AppCon: React.FC = () => {
     switch (currentView) {
       case 'dashboard':
         return (
-          <VStack spacing={8} align="stretch">
+          <VStack spacing={8} align="stretch" maxW="1200px" mx="auto" px={4}>
             {!isOnboardingComplete && (
               <Box
                 p={4}
@@ -143,14 +196,23 @@ const AppCon: React.FC = () => {
                     onClick={() => setCurrentView('onboarding')}
                     cursor="pointer"
                   >
-                    log more info
+                    complete your profile
                   </ChakraLink>{' '}
-                  to help us build better recommendations.
+                  to get personalized recommendations.
                 </Text>
               </Box>
             )}
 
-            <DailyOverview />
+            <DailyOverview 
+              data={{
+                calories: 0,
+                protein: 0,
+                carbs: 0,
+                fat: 0
+              }}
+              goals={userGoals}
+            />
+            
             <NutritionChart data={[]} />
             <ProgressTracker />
 
@@ -178,7 +240,7 @@ const AppCon: React.FC = () => {
                   }}
                 />
               ) : (
-                <Text color="gray.500">Recommendations will appear after onboarding.</Text>
+                <Text color="gray.500">Complete your profile to get personalized recommendations.</Text>
               )}
             </Box>
           </VStack>
@@ -188,7 +250,7 @@ const AppCon: React.FC = () => {
       case 'profile':
         return <UserProfile />;
       case 'goals':
-        return <GoalSetting />;
+        return <GoalSetting onViewChange={setCurrentView} />;
       case 'preferences':
         return <Preferences />;
       default:

@@ -46,6 +46,7 @@ import { mealLogSchema, foodItemSchema } from '../../utils/validation';
 import { useMealLogging } from '../../hooks/useMealLogging';
 import { useErrorHandling } from '../../hooks/useErrorHandling';
 import { format } from 'date-fns';
+import { useAuth } from '../../hooks/useAuth';
 
 // Define the type for the meal log form inputs
 type MealLogFormInputs = z.infer<typeof mealLogSchema>;
@@ -64,6 +65,7 @@ interface FoodItemData {
 const MealLogger: React.FC = () => {
   const { isLogging, submitMealLog } = useMealLogging();
   const { handleError } = useErrorHandling();
+  const { user } = useAuth();
   const theme = useTheme();
 
   const { isOpen: isFoodSearchOpen, onOpen: onFoodSearchOpen, onClose: onFoodSearchClose } = useDisclosure();
@@ -108,7 +110,21 @@ const MealLogger: React.FC = () => {
 
   const onSubmit = async (data: MealLogFormInputs) => {
     try {
-      await submitMealLog(data);
+      if (!user?.id) {
+        throw new Error('User must be logged in to log meals');
+      }
+
+      // Add user ID to the meal data
+      const mealDataWithUser = {
+        ...data,
+        userId: user.id,
+        timestamp: new Date().toISOString()
+      };
+
+      console.log('Submitting meal data:', mealDataWithUser);
+      const response = await submitMealLog(mealDataWithUser);
+      console.log('Meal log response:', response);
+
       reset({
         mealType: 'lunch',
         mealDate: format(new Date(), 'yyyy-MM-dd'),
@@ -117,6 +133,7 @@ const MealLogger: React.FC = () => {
         notes: '',
       });
     } catch (error) {
+      console.error('Error submitting meal:', error);
       handleError(error);
     }
   };
@@ -195,6 +212,7 @@ const MealLogger: React.FC = () => {
 
             <HStack gap={4} justifyContent="center" mb={4}>
               <Button
+                type="button"
                 onClick={onFoodSearchOpen}
                 colorScheme="teal"
                 variant="outline"
@@ -206,6 +224,7 @@ const MealLogger: React.FC = () => {
                 Search Food
               </Button>
               <Button
+                type="button"
                 onClick={onBarcodeScannerOpen}
                 colorScheme="teal"
                 variant="outline"
@@ -307,6 +326,7 @@ const MealLogger: React.FC = () => {
               bg="accent.500"
               color="white"
               _hover={{ bg: 'accent.600' }}
+              isDisabled={fields.length === 0}
             >
               Log Meal
             </Button>
@@ -321,11 +341,13 @@ const MealLogger: React.FC = () => {
           <ModalHeader color="text.dark">Search & Add Food</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            <FoodSearch onFoodSelect={(food) => handleAddFoodItem({
-              ...food,
-              quantity: 1,
-              unit: food.unit || 'serving'
-            })} />
+            <FoodSearch onFoodSelect={(food) => {
+              handleAddFoodItem({
+                ...food,
+                quantity: 1,
+                unit: food.unit || 'serving'
+              });
+            }} />
           </ModalBody>
         </ModalContent>
       </Modal>
@@ -338,8 +360,6 @@ const MealLogger: React.FC = () => {
           <ModalCloseButton />
           <ModalBody>
             <BarcodeScanner onScan={(barcode) => {
-              // In a real app, you'd fetch food item details using this barcode
-              // For now, let's just add a placeholder food item
               const scannedFood: FoodItemData = {
                 name: `Scanned Item: ${barcode}`,
                 calories: 0,

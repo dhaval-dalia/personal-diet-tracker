@@ -79,7 +79,7 @@ const QuickAdd: React.FC<QuickAddProps> = ({ onQuickAdd }) => {
           Quickly add a food item with just a name and calories.
         </Text>
 
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <Box as="div" onSubmit={handleSubmit(onSubmit)}>
           <Stack gap={3}>
             <div>
               <label htmlFor="quick-name" className="block text-sm font-medium text-gray-700">
@@ -150,14 +150,21 @@ const QuickAdd: React.FC<QuickAddProps> = ({ onQuickAdd }) => {
             </div>
 
             <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full mt-4 bg-brand-300 text-white hover:bg-brand-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-300"
+              type="button"
+              onClick={handleSubmit(onSubmit)}
+              isLoading={isSubmitting}
+              colorScheme="teal"
+              variant="solid"
+              width="full"
+              mt={4}
+              bg="brand.300"
+              color="white"
+              _hover={{ bg: 'brand.400' }}
             >
               {isSubmitting ? 'Adding...' : 'Add Food'}
             </Button>
           </Stack>
-        </form>
+        </Box>
       </Stack>
     </Box>
   );

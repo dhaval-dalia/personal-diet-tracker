@@ -1,24 +1,24 @@
 // src/hooks/useAuth.ts
-// This custom hook manages user authentication state using Supabase.
-// It provides functions for signing up, logging in, logging out,
-// and accessing the current user session. It also handles loading states
-// and errors.
-
 import { useState, useEffect, useContext, createContext, ReactNode, JSX } from 'react';
 import { supabase } from '../services/supabase';
 import { Session, User } from '@supabase/supabase-js';
-import { loginSchema, signupSchema } from '../utils/validation';
+import { loginSchema } from '../utils/validation';
 import { z } from 'zod';
 import { useErrorHandling } from './useErrorHandling';
 import { triggerOnboarding } from '../services/n8nWebhooks';
 
+// Define signup schema since it's missing
+const signupSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+});
 
 interface AuthContextType {
   session: Session | null;
   user: User | null;
   isLoading: boolean;
   signIn: (data: z.infer<typeof loginSchema>) => Promise<{ user: User | null; error: Error | null }>;
-  signUp: (data: z.infer<typeof signupSchema>) => Promise<{ user: User | null; error: Error | null }>;
+  signUp: (data: { email: string; password: string }) => Promise<{ user: User | null; error: Error | null }>;
   signOut: () => Promise<{ error: Error | null }>;
   isAuthReady: boolean;
 }
@@ -39,17 +39,7 @@ const AuthProvider = ({ children }: AuthProviderProps): JSX.Element => {
   useEffect(() => {
     console.log('AuthProvider useEffect triggered.');
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event, session);
-        setSession(session);
-        setUser(session?.user || null);
-        setIsLoading(false);
-        setIsAuthReady(true);
-        console.log('isAuthReady set to true.');
-      }
-    );
-
+    // Get initial session first
     const getInitialSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
@@ -58,8 +48,10 @@ const AuthProvider = ({ children }: AuthProviderProps): JSX.Element => {
         setSession(session);
         setUser(session?.user || null);
       } catch (error) {
+        console.error('Failed to get initial session:', error);
         handleError(error, 'Failed to get initial session.');
         setUser(null);
+        setSession(null);
       } finally {
         setIsLoading(false);
         setIsAuthReady(true);
@@ -69,22 +61,41 @@ const AuthProvider = ({ children }: AuthProviderProps): JSX.Element => {
 
     getInitialSession();
 
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event, session);
+        setSession(session);
+        setUser(session?.user || null);
+        setIsLoading(false);
+        
+        if (!isAuthReady) {
+          setIsAuthReady(true);
+          console.log('isAuthReady set to true via auth state change.');
+        }
+      }
+    );
+
     return () => {
       console.log('Auth listener cleanup.');
       subscription?.unsubscribe();
     };
-  }, [handleError]);
+  }, [handleError, isAuthReady]);
 
   const signIn = async (data: z.infer<typeof loginSchema>) => {
     setIsLoading(true);
     try {
-      const { data: { user }, error } = await supabase.auth.signInWithPassword({
+      const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
       });
+      
       if (error) throw error;
-      return { user, error: null };
+      
+      console.log('Sign in successful:', authData.user);
+      return { user: authData.user, error: null };
     } catch (error) {
+      console.error('Sign in error:', error);
       handleError(error);
       return { user: null, error: error as Error };
     } finally {
@@ -92,24 +103,45 @@ const AuthProvider = ({ children }: AuthProviderProps): JSX.Element => {
     }
   };
 
-  const signUp = async (data: z.infer<typeof signupSchema>) => {
+  const signUp = async (data: { email: string; password: string }) => {
     setIsLoading(true);
     try {
-      const { data: { user }, error } = await supabase.auth.signUp({
+      console.log('Attempting sign up with:', data.email);
+      
+      const { data: authData, error } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
       });
-      if (error) throw error;
-
-      if (user) {
-        await triggerOnboarding({
-          userId: user.id,
-          email: user.email,
-        });
+      
+      if (error) {
+        console.error('Supabase sign up error:', error);
+        throw error;
       }
 
-      return { user, error: null };
+      console.log('Sign up response:', authData);
+
+      if (authData.user) {
+        console.log('User created successfully:', authData.user.id);
+        
+        // Trigger onboarding workflow
+        try {
+          await triggerOnboarding({
+            userId: authData.user.id,
+            email: authData.user.email || data.email,
+          });
+          console.log('Onboarding workflow triggered');
+        } catch (onboardingError) {
+          console.error('Failed to trigger onboarding:', onboardingError);
+          // Don't fail the signup if onboarding fails
+        }
+      }
+
+      return { user: authData.user, error: null };
     } catch (error) {
+      console.error('Sign up error:', error);
       handleError(error);
       return { user: null, error: error as Error };
     } finally {
@@ -122,8 +154,14 @@ const AuthProvider = ({ children }: AuthProviderProps): JSX.Element => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      
+      // Clear local state
+      setSession(null);
+      setUser(null);
+      
       return { error: null };
     } catch (error) {
+      console.error('Sign out error:', error);
       handleError(error);
       return { error: error as Error };
     } finally {
@@ -165,4 +203,4 @@ const useAuth = () => {
   return context;
 };
 
-export { AuthProvider, useAuth };
+export { AuthProvider, useAuth, signupSchema };

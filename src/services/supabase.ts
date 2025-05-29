@@ -1,4 +1,4 @@
-// src/services/supabase.ts
+          // src/services/supabase.ts
 // This file initializes the Supabase client using environment variables.
 // It provides the main Supabase client instance for interacting with the database
 // and authentication services throughout the application.

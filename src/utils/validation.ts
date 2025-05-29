@@ -5,67 +5,141 @@
 
 import { z } from 'zod';
 
+// Common profanity list (you can expand this)
+const profanityList = [
+  'fuck', 'bitch', 'asshole', // Add actual profanity words here
+];
+
+// Utility function to check for profanity
+const containsProfanity = (text: string): boolean => {
+  const normalizedText = text.toLowerCase();
+  return profanityList.some(word => normalizedText.includes(word));
+};
+
+// Custom error messages
+const errorMessages = {
+  profanity: 'Please use appropriate language',
+  name: {
+    required: 'Name is required',
+    min: 'Name must be at least 2 characters',
+    max: 'Name must not exceed 50 characters',
+    format: 'Name can only contain letters, spaces, hyphens, and apostrophes',
+  },
+  age: {
+    required: 'Age is required',
+    min: 'Age must be at least 10 years',
+    max: 'Age must not exceed 120 years',
+  },
+  height: {
+    required: 'Height is required',
+    min: 'Height must be at least 50 cm',
+    max: 'Height must not exceed 250 cm',
+  },
+  weight: {
+    required: 'Weight is required',
+    min: 'Weight must be at least 20 kg',
+    max: 'Weight must not exceed 300 kg',
+  },
+};
+
 // --- Auth Schemas ---
 
 export const loginSchema = z.object({
-  email: z.string().email('Invalid email address').min(1, 'Email is required'),
+  email: z.string().email('Please enter a valid email address').min(1, 'Email is required'),
   password: z.string().min(6, 'Password must be at least 6 characters long'),
 });
 
 export const signupSchema = z.object({
-  email: z.string().email('Invalid email address').min(1, 'Email is required'),
-  password: z.string().min(6, 'Password must be at least 6 characters long'),
-  confirmPassword: z.string().min(6, 'Confirm Password is required'),
-}).refine((data: { password: string; confirmPassword: string }) => data.password === data.confirmPassword, {
+  email: z.string()
+    .min(1, 'Email is required')
+    .email('Please enter a valid email address')
+    .regex(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, 'Please enter a valid email address'),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters long')
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Password must contain at least one number')
+    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
+  confirmPassword: z.string()
+    .min(8, 'Confirm Password must be at least 8 characters long'),
+}).refine((data) => data.password === data.confirmPassword, {
   message: 'Passwords do not match',
-  path: ['confirmPassword'], // Path to the field that caused the error
+  path: ['confirmPassword'],
 });
 
 // --- Onboarding Schemas ---
 
 export const onboardingSchema = z.object({
-  fullName: z.string().min(2, 'Name must be at least 2 characters'),
-  age: z.number().min(10).max(120),
-  gender: z.enum(['male', 'female', 'other']),
-  heightCm: z.number().min(50).max(250),
-  weightKg: z.number().min(20).max(300),
+  fullName: z.string()
+    .min(2, 'Name must be at least 2 characters')
+    .max(50, 'Name must not exceed 50 characters')
+    .regex(/^[a-zA-Z\s-']+$/, 'Name can only contain letters, spaces, hyphens, and apostrophes')
+    .refine(val => !containsProfanity(val), 'Please use appropriate language'),
+  age: z.number()
+    .min(10, 'Age must be at least 10 years')
+    .max(120, 'Age must not exceed 120 years'),
+  gender: z.enum(['male', 'female', 'other'], {
+    required_error: 'Please select a gender',
+  }),
+  heightCm: z.number()
+    .min(50, 'Height must be at least 50 cm')
+    .max(250, 'Height must not exceed 250 cm'),
+  weightKg: z.number()
+    .min(20, 'Weight must be at least 20 kg')
+    .max(300, 'Weight must not exceed 300 kg'),
   activityLevel: z.enum([
     'sedentary',
     'lightly_active',
     'moderately_active',
     'very_active',
     'extra_active'
-  ]),
+  ], {
+    required_error: 'Please select an activity level',
+  }),
   goal: z.enum([
     'lose_weight',
     'maintain_weight',
     'gain_weight',
     'build_muscle'
-  ]),
-  // New fields
+  ], {
+    required_error: 'Please select a goal',
+  }),
   dietaryRestrictions: z.array(z.string()).optional(),
   allergies: z.array(z.string()).optional(),
   medicalConditions: z.array(z.string()).optional(),
   preferredMealTimes: z.record(z.string()).optional(),
-  fitnessLevel: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
+  fitnessLevel: z.enum(['beginner', 'intermediate', 'advanced'], {
+    required_error: 'Please select your fitness level',
+  }).optional(),
   preferredWorkoutDays: z.array(z.string()).optional(),
-  // Goal specific fields
-  targetWeight: z.number().min(20).max(300).optional(),
-  targetCalories: z.number().min(500).max(5000).optional(),
-  targetProteinRatio: z.number().min(0).max(100).optional(),
-  targetCarbsRatio: z.number().min(0).max(100).optional(),
-  targetFatRatio: z.number().min(0).max(100).optional(),
-  targetProteinTarget: z.number().min(0).optional(),
-  targetCarbTarget: z.number().min(0).optional(),
-  targetFatTarget: z.number().min(0).optional(),
-  targetTimeframe: z.string().optional(),
-  specificObjectives: z.string().optional(),
-  progressTrackingPreference: z.string().optional(),
-  targetDate: z.date().optional(),
-  weeklyWorkoutGoal: z.number().min(0).max(7).optional(),
-  waterIntakeGoal: z.number().min(0).max(10).optional(),
-  sleepGoal: z.number().min(4).max(12).optional(),
-  mealPrepPreference: z.enum(['daily', 'weekly', 'none']).optional()
+  targetWeight: z.number()
+    .min(20, 'Target weight must be at least 20 kg')
+    .max(300, 'Target weight must not exceed 300 kg')
+    .optional(),
+  targetDate: z.string().optional(),
+  weeklyWorkoutGoal: z.number()
+    .min(0, 'Weekly workout goal must be at least 0 days')
+    .max(7, 'Weekly workout goal cannot exceed 7 days')
+    .optional(),
+  waterIntakeGoal: z.number()
+    .min(0, 'Water intake goal must be at least 0 liters')
+    .max(10, 'Water intake goal cannot exceed 10 liters')
+    .optional(),
+  sleepGoal: z.number()
+    .min(4, 'Sleep goal must be at least 4 hours')
+    .max(12, 'Sleep goal cannot exceed 12 hours')
+    .optional(),
+  mealPrepPreference: z.enum(['daily', 'weekly', 'none'], {
+    required_error: 'Please select a meal prep preference',
+  }).optional(),
+}).refine(data => {
+  if (data.goal === 'lose_weight' && data.targetWeight) {
+    return data.targetWeight < data.weightKg;
+  }
+  return true;
+}, {
+  message: 'Target weight must be less than current weight for weight loss goals',
+  path: ['targetWeight'],
 });
 
 // --- Meal Logging Schemas ---
@@ -92,33 +166,90 @@ export const mealLogSchema = z.object({
 // --- User Profile & Goal Setting Schemas ---
 
 export const userProfileSchema = z.object({
-  fullName: z.string().min(1, 'Full Name is required'),
-  age: z.number().min(10, 'Age must be at least 10').max(120, 'Age seems too high').int('Age must be an integer'),
-  gender: z.enum(['male', 'female', 'other'], { message: 'Please select a gender' }),
-  heightCm: z.number().min(50, 'Height must be at least 50 cm').max(250, 'Height seems too high').int('Height must be an integer'),
-  weightKg: z.number().min(20, 'Weight must be at least 20 kg').max(300, 'Weight seems too high'),
-  activityLevel: z.enum(['sedentary', 'lightly_active', 'moderately_active', 'very_active', 'extra_active'], { message: 'Please select an activity level' }),
+  fullName: z.string()
+    .min(2, errorMessages.name.min)
+    .max(50, errorMessages.name.max)
+    .regex(/^[a-zA-Z\s-']+$/, errorMessages.name.format)
+    .refine(val => !containsProfanity(val), errorMessages.profanity),
+  age: z.number()
+    .min(10, errorMessages.age.min)
+    .max(120, errorMessages.age.max),
+  gender: z.enum(['male', 'female', 'other'], {
+    required_error: 'Please select a gender',
+  }),
+  heightCm: z.number()
+    .min(50, errorMessages.height.min)
+    .max(250, errorMessages.height.max),
+  weightKg: z.number()
+    .min(20, errorMessages.weight.min)
+    .max(300, errorMessages.weight.max),
+  activityLevel: z.enum([
+    'sedentary',
+    'lightly_active',
+    'moderately_active',
+    'very_active',
+    'extra_active'
+  ], {
+    required_error: 'Please select an activity level',
+  }),
+}).refine(data => {
+  // Additional logical validations
+  const bmi = data.weightKg / Math.pow(data.heightCm / 100, 2);
+  return bmi >= 10 && bmi <= 50; // Reasonable BMI range
+}, {
+  message: 'The combination of height and weight seems unrealistic',
+  path: ['weightKg'], // Show error on weight field
 });
 
 export const goalSettingSchema = z.object({
-  targetWeightKg: z.number().min(20, 'Target weight must be at least 20 kg').max(300, 'Target weight seems too high').optional(),
-  targetCalories: z.number().min(500, 'Target calories must be at least 500').max(5000, 'Target calories seems too high').optional(),
-  targetProteinRatio: z.number().min(0).max(100).optional(), // Percentage
-  targetCarbsRatio: z.number().min(0).max(100).optional(),
-  targetFatRatio: z.number().min(0).max(100).optional(),
-}).refine((data: { targetProteinRatio?: number; targetCarbsRatio?: number; targetFatRatio?: number }) => {
-  const totalRatio = (data.targetProteinRatio || 0) + (data.targetCarbsRatio || 0) + (data.targetFatRatio || 0);
-  if (totalRatio > 0 && totalRatio !== 100) {
-    return false; // Ratios must sum to 100 if any are provided
+  target_calories: z.number()
+    .min(500, 'Calories must be at least 500')
+    .max(5000, 'Calories must not exceed 5000')
+    .optional(),
+  target_protein_ratio: z.number()
+    .min(0, 'Protein ratio must be at least 0%')
+    .max(100, 'Protein ratio must not exceed 100%')
+    .optional(),
+  target_carbs_ratio: z.number()
+    .min(0, 'Carbs ratio must be at least 0%')
+    .max(100, 'Carbs ratio must not exceed 100%')
+    .optional(),
+  target_fat_ratio: z.number()
+    .min(0, 'Fat ratio must be at least 0%')
+    .max(100, 'Fat ratio must not exceed 100%')
+    .optional(),
+  target_weight_kg: z.number()
+    .min(20, 'Weight must be at least 20 kg')
+    .max(300, 'Weight must not exceed 300 kg')
+    .optional(),
+  target_date: z.string()
+    .optional(),
+  weekly_workout_goal: z.number()
+    .min(0, 'Weekly workout goal must be at least 0 days')
+    .max(7, 'Weekly workout goal cannot exceed 7 days')
+    .optional(),
+  water_intake_goal: z.number()
+    .min(0, 'Water intake goal must be at least 0 liters')
+    .max(10, 'Water intake goal cannot exceed 10 liters')
+    .optional(),
+  sleep_goal: z.number()
+    .min(4, 'Sleep goal must be at least 4 hours')
+    .max(12, 'Sleep goal cannot exceed 12 hours')
+    .optional(),
+}).refine(data => {
+  const { target_protein_ratio, target_carbs_ratio, target_fat_ratio } = data;
+  if (target_protein_ratio && target_carbs_ratio && target_fat_ratio) {
+    const sum = target_protein_ratio + target_carbs_ratio + target_fat_ratio;
+    return sum === 100;
   }
   return true;
 }, {
-  message: 'Protein, Carbs, and Fat ratios must sum to 100 if specified.',
-  path: ['targetProteinRatio'], // Error can be shown on any of these fields
+  message: 'Macronutrient ratios must sum to 100%',
+  path: ['root'],
 });
 
 export const preferencesSchema = z.object({
-  receiveNotifications: z.boolean().optional(),
-  notificationFrequency: z.enum(['daily', 'weekly', 'monthly']).optional(),
-  themePreference: z.enum(['light', 'dark', 'system']).optional(),
+  receiveNotifications: z.boolean(),
+  notificationFrequency: z.enum(['daily', 'weekly', 'monthly']),
+  themePreference: z.enum(['light', 'dark', 'system']),
 });
