@@ -156,9 +156,11 @@ export const foodItemSchema = z.object({
 });
 
 export const mealLogSchema = z.object({
+  userId: z.string().min(1, 'User ID is required'),
+  timestamp: z.string().min(1, 'Timestamp is required'),
   mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack', 'other'], { message: 'Please select a meal type' }),
-  mealDate: z.string().min(1, 'Meal date is required'), // Consider using z.date() if using a date picker that returns Date objects
-  mealTime: z.string().min(1, 'Meal time is required'), // e.g., "HH:MM"
+  mealDate: z.string().min(1, 'Meal date is required'),
+  mealTime: z.string().min(1, 'Meal time is required'),
   foodItems: z.array(foodItemSchema).min(1, 'At least one food item is required for a meal'),
   notes: z.string().optional(),
 });

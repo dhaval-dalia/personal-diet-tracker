@@ -285,7 +285,11 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
       console.log('Triggering onboarding workflow...');
       await triggerOnboarding({
         userId: user.id,
-        ...data
+        timestamp: new Date().toISOString(),
+        context: {
+          platform: 'web',
+          source: 'onboarding-flow'
+        }
       });
 
       // Clear localStorage after successful submission

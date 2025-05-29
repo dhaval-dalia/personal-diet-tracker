@@ -44,6 +44,15 @@ interface OnboardingData {
   };
 }
 
+interface RecommendationRequest {
+  userId: string;
+  timestamp: string;
+  context: {
+    platform: string;
+    source: string;
+  };
+}
+
 /**
  * Logs a meal by sending meal data to the /api/n8n/meal-log Next.js API route.
  * This route then forwards the data to the n8n Meal Logging Workflow.
@@ -188,6 +197,59 @@ export const triggerOnboarding = async (data: OnboardingData) => {
     return responseData;
   } catch (error: any) {
     console.error('Error in triggerOnboarding service:', error);
+    throw error;
+  }
+};
+
+export const requestRecommendations = async (userId: string) => {
+  try {
+    const response = await fetch('/api/n8n/recommendations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId,
+        timestamp: new Date().toISOString(),
+        context: {
+          platform: 'web',
+          source: 'recommendations-widget'
+        }
+      }),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.error || responseData.details || 'Failed to fetch recommendations');
+    }
+
+    return responseData;
+  } catch (error: any) {
+    console.error('Error in requestRecommendations service:', error);
+    throw error;
+  }
+};
+
+export const requestAIRecommendations = async (data: RecommendationRequest) => {
+  try {
+    const response = await fetch('/api/n8n/ai-recommendations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.error || responseData.details || 'Failed to fetch AI recommendations');
+    }
+
+    return responseData;
+  } catch (error: any) {
+    console.error('Error in requestAIRecommendations service:', error);
     throw error;
   }
 };

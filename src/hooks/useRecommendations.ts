@@ -4,8 +4,8 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useErrorHandling } from './useErrorHandling';
-import { requestRecommendations } from '../services/n8nWebhooks';
-import { useAuth } from './useAuth'; // To get the current user's ID
+import { requestRecommendations, requestAIRecommendations } from '../services/n8nWebhooks';
+import { useAuth } from './useAuth';
 
 // Define a type for the recommendation data structure
 interface Recommendation {
@@ -14,20 +14,19 @@ interface Recommendation {
   type: 'nutrition' | 'exercise' | 'general';
   title: string;
   content: string;
-  createdAt: string; // ISO date string
-  // Add any other fields your recommendations might have
+  createdAt: string;
+  source: 'ai' | 'system';
 }
 
 export const useRecommendations = () => {
-  const { user, isAuthReady } = useAuth(); // Get user and auth status from useAuth hook
+  const { user, isAuthReady } = useAuth();
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { handleError } = useErrorHandling();
 
   /**
-   * Fetches recommendations for the current user.
-   * This function is memoized using useCallback to prevent unnecessary re-renders.
+   * Fetches both system and AI-generated recommendations for the current user.
    */
   const fetchRecommendations = useCallback(async () => {
     if (!user?.id) {
@@ -39,10 +38,26 @@ export const useRecommendations = () => {
     setIsLoading(true);
     setError(null);
     try {
-      // Call the n8n webhook service to request recommendations
-      const response = await requestRecommendations(user.id);
-      // Assuming the response.data contains an array of recommendations
-      setRecommendations(response.data || []);
+      // Fetch both system and AI recommendations in parallel
+      const [systemResponse, aiResponse] = await Promise.all([
+        requestRecommendations(user.id),
+        requestAIRecommendations({
+          userId: user.id,
+          timestamp: new Date().toISOString(),
+          context: {
+            platform: 'web',
+            source: 'recommendations'
+          }
+        })
+      ]);
+
+      // Combine and sort recommendations by creation date
+      const allRecommendations = [
+        ...(systemResponse.data || []).map((rec: Omit<Recommendation, 'source'>) => ({ ...rec, source: 'system' as const })),
+        ...(aiResponse.data || []).map((rec: Omit<Recommendation, 'source'>) => ({ ...rec, source: 'ai' as const }))
+      ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      setRecommendations(allRecommendations);
     } catch (err) {
       handleError(err, 'Fetching recommendations');
       setError('Failed to fetch recommendations');
@@ -50,19 +65,19 @@ export const useRecommendations = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, handleError]); // Re-run if user.id changes
+  }, [user?.id, handleError]);
 
   // Automatically fetch recommendations when the user is authenticated and ready
   useEffect(() => {
     if (isAuthReady && user?.id) {
       fetchRecommendations();
     }
-  }, [isAuthReady, user?.id, fetchRecommendations]); // Dependencies for this effect
+  }, [isAuthReady, user?.id, fetchRecommendations]);
 
   return {
     recommendations,
     isLoading,
     error,
-    fetchRecommendations, // Allow components to manually refresh recommendations
+    fetchRecommendations,
   };
 };

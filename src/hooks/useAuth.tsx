@@ -130,7 +130,11 @@ const AuthProvider = ({ children }: AuthProviderProps): JSX.Element => {
         try {
           await triggerOnboarding({
             userId: authData.user.id,
-            email: authData.user.email || data.email,
+            timestamp: new Date().toISOString(),
+            context: {
+              platform: 'web',
+              source: 'signup'
+            }
           });
           console.log('Onboarding workflow triggered');
         } catch (onboardingError) {

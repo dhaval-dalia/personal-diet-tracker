@@ -5,6 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { useErrorHandling } from './useErrorHandling';
+import { useAuth } from './useAuth';
 import { logMeal } from '../services/n8nWebhooks';
 import { mealLogSchema, foodItemSchema } from '../utils/validation';
 import { z } from 'zod';
@@ -17,31 +18,37 @@ export const useMealLogging = () => {
   const [isLogging, setIsLogging] = useState(false);
   const [logSuccess, setLogSuccess] = useState(false);
   const { handleError } = useErrorHandling();
+  const { user } = useAuth();
 
   /**
    * Submits meal data to the n8n meal logging workflow.
    * @param mealData - The complete meal log data.
    */
-  const submitMealLog = useCallback(async (mealData: MealLogData) => {
+  const submitMealLog = useCallback(async (mealData: Omit<MealLogData, 'userId' | 'timestamp'>) => {
+    if (!user?.id) throw new Error('User must be logged in to log meals');
+    
     setIsLogging(true);
     setLogSuccess(false);
     try {
-      // Validate data against the schema before sending
-      mealLogSchema.parse(mealData);
+      const completeMealData: MealLogData = {
+        ...mealData,
+        userId: user.id,
+        timestamp: new Date().toISOString()
+      };
 
-      // Call the n8n webhook service to log the meal
-      const response = await logMeal(mealData);
+      mealLogSchema.parse(completeMealData);
+      const response = await logMeal(completeMealData);
       console.log('Meal logged successfully:', response);
       setLogSuccess(true);
       return response;
     } catch (error) {
       handleError(error);
       setLogSuccess(false);
-      throw error; // Re-throw to allow component to handle if needed
+      throw error;
     } finally {
       setIsLogging(false);
     }
-  }, [handleError]);
+  }, [handleError, user?.id]);
 
   return {
     isLogging,
