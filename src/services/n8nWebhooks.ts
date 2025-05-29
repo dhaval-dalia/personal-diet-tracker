@@ -35,6 +35,15 @@ interface ChatMessageData {
   };
 }
 
+interface OnboardingData {
+  userId: string;
+  timestamp: string;
+  context: {
+    platform: string;
+    source: string;
+  };
+}
+
 /**
  * Logs a meal by sending meal data to the /api/n8n/meal-log Next.js API route.
  * This route then forwards the data to the n8n Meal Logging Workflow.
@@ -149,6 +158,36 @@ export const processChatMessage = async (data: ChatMessageData) => {
     return responseData;
   } catch (error: any) {
     console.error('Error in processChatMessage service:', error);
+    throw error;
+  }
+};
+
+/**
+ * Triggers the onboarding workflow for a new user
+ * @param data - The onboarding data containing user ID and context
+ * @returns A promise that resolves with the response data from the n8n workflow
+ * @throws An error if the API call fails
+ */
+export const triggerOnboarding = async (data: OnboardingData) => {
+  try {
+    const response = await fetch('/api/n8n/onboarding', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      console.error('n8n onboarding webhook error:', responseData);
+      throw new Error(responseData.error || responseData.details || 'Failed to trigger onboarding');
+    }
+
+    return responseData;
+  } catch (error: any) {
+    console.error('Error in triggerOnboarding service:', error);
     throw error;
   }
 };
