@@ -1,5 +1,5 @@
 // src/components/dashboard/ProgressTracker.tsx
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Heading,
@@ -9,23 +9,118 @@ import {
   SimpleGrid,
   Icon,
   Divider,
+  Spinner,
+  Center
 } from '@chakra-ui/react';
 import { FaWeight, FaFire } from 'react-icons/fa';
+import { supabase } from '../../services/supabase';
+import { useAuth } from '../../hooks/useAuth';
 
 interface ProgressData {
-  currentWeight?: number | null;
-  targetWeight?: number | null;
-  targetCalories?: number | null;
+  current_weight?: number | null;
+  target_weight?: number | null;
+  target_calories?: number | null;
 }
 
-interface ProgressTrackerProps {
-  data?: ProgressData | null;
-}
+const ProgressTracker: React.FC = () => {
+  const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [data, setData] = useState<ProgressData | null>(null);
 
-const ProgressTracker: React.FC<ProgressTrackerProps> = ({ data }) => {
-  const currentWeight = data?.currentWeight;
-  const targetWeight = data?.targetWeight;
-  const targetCalories = data?.targetCalories;
+  useEffect(() => {
+    const fetchProgressData = async () => {
+      if (!user?.id) return;
+
+      try {
+        // Fetch user profile for current weight
+        const { data: profileData, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('weight_kg')
+          .eq('user_id', user.id)
+          .single();
+
+        if (profileError) throw profileError;
+
+        // Fetch user goals
+        const { data: goalsData, error: goalsError } = await supabase
+          .from('user_goals')
+          .select('target_weight_kg, target_calories')
+          .eq('user_id', user.id)
+          .single();
+
+        if (goalsError) throw goalsError;
+
+        setData({
+          current_weight: profileData?.weight_kg,
+          target_weight: goalsData?.target_weight_kg,
+          target_calories: goalsData?.target_calories
+        });
+      } catch (error) {
+        console.error('Error fetching progress data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProgressData();
+
+    // Subscribe to real-time updates
+    const subscription = supabase
+      .channel('progress_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_profiles',
+          filter: `user_id=eq.${user?.id}`
+        },
+        () => {
+          fetchProgressData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_goals',
+          filter: `user_id=eq.${user?.id}`
+        },
+        () => {
+          fetchProgressData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user?.id]);
+
+  if (isLoading) {
+    return (
+      <Box
+        p={8}
+        maxWidth="900px"
+        borderWidth={1}
+        borderRadius="lg"
+        boxShadow="lg"
+        bg="whiteAlpha.700"
+        borderColor="brand.200"
+        mx="auto"
+        my={8}
+      >
+        <Center h="200px">
+          <Spinner size="xl" color="accent.500" />
+        </Center>
+      </Box>
+    );
+  }
+
+  const currentWeight = data?.current_weight;
+  const targetWeight = data?.target_weight;
+  const targetCalories = data?.target_calories;
 
   let weightProgress = 0;
   if (currentWeight !== null && targetWeight !== null && currentWeight && targetWeight) {

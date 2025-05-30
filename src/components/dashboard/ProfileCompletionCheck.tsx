@@ -54,8 +54,8 @@ const ProfileCompletionCheck: React.FC<ProfileCompletionCheckProps> = ({ onNavig
           if (!data.allergies) missing.push('Allergies');
           if (!data.medical_conditions) missing.push('Medical Conditions');
           if (!data.fitness_level) missing.push('Fitness Level');
-          if (!data.goal) missing.push('Goals');
-          if (!data.sleep_hours) missing.push('Sleep Hours');
+          if (!data.goal_type) missing.push('Goals');
+          if (!data.sleep_goal) missing.push('Sleep Hours');
 
           setMissingFields(missing);
 

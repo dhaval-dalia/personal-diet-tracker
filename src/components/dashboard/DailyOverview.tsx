@@ -29,16 +29,26 @@ interface DailyData {
 }
 
 interface UserGoals {
-  targetCalories?: number;
-  targetProteinRatio?: number;
-  targetCarbsRatio?: number;
-  targetFatRatio?: number;
-  targetWeightKg?: number;
+  target_calories?: number;
+  target_protein_ratio?: number;
+  target_carbs_ratio?: number;
+  target_fat_ratio?: number;
+  target_weight_kg?: number;
 }
 
 interface DailyOverviewProps {
   data?: DailyData | null;
   goals?: UserGoals | null;
+}
+
+interface ChatMessageData {
+  user_id: string;
+  message: string;
+  is_bot: boolean;
+  created_at: string;
+  response?: any;
+  metadata?: Record<string, any>;
+  confirmed?: boolean;
 }
 
 const logDetailsSchema = z.object({
@@ -84,7 +94,7 @@ const WavingBot = () => (
 
 const DailyOverview: React.FC<DailyOverviewProps> = ({ data, goals: initialGoals }) => {
   const { user } = useAuth();
-  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessageData[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [pendingResponse, setPendingResponse] = useState<any>(null);
@@ -178,7 +188,8 @@ const DailyOverview: React.FC<DailyOverviewProps> = ({ data, goals: initialGoals
           user_id: user.id,
           message: message,
           confirmed: true,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          metadata: {}
         }]);
 
       if (saveError) {
@@ -187,9 +198,9 @@ const DailyOverview: React.FC<DailyOverviewProps> = ({ data, goals: initialGoals
 
       // Then process through n8n
       const botResponse = await processN8nMessage({
-        userId: user.id,
+        user_id: user.id,
         message,
-        timestamp: new Date().toISOString(),
+        created_at: new Date().toISOString(),
         context: {
           platform: 'web',
           source: 'chat-widget'
@@ -206,7 +217,8 @@ const DailyOverview: React.FC<DailyOverviewProps> = ({ data, goals: initialGoals
           message: botResponse.message,
           response: botResponse,
           confirmed: true,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          metadata: botResponse.metadata || {}
         }]);
 
       if (botSaveError) {
@@ -220,14 +232,16 @@ const DailyOverview: React.FC<DailyOverviewProps> = ({ data, goals: initialGoals
           user_id: user.id,
           message: message,
           is_bot: false,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          metadata: {}
         },
         {
           user_id: user.id,
           message: botResponse.message,
           is_bot: true,
           created_at: new Date().toISOString(),
-          response: botResponse
+          response: botResponse,
+          metadata: botResponse.metadata || {}
         }
       ]);
       
@@ -311,10 +325,25 @@ const DailyOverview: React.FC<DailyOverviewProps> = ({ data, goals: initialGoals
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !user?.id) return;
-    
-    const message = newMessage;
+
+    const userMessage = newMessage.trim();
     setNewMessage('');
-    await processChatMessage(message);
+    setIsLoading(true);
+
+    try {
+      await processChatMessage(userMessage);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to send message. Please try again.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -346,18 +375,18 @@ const DailyOverview: React.FC<DailyOverviewProps> = ({ data, goals: initialGoals
   }
 
   const currentCalories = data.calories || 0;
-  const targetCalories = goals?.targetCalories || 2000;
+  const targetCalories = goals?.target_calories || 2000;
   const caloriesProgress = (currentCalories / targetCalories) * 100;
 
   const getMacroProgress = (current: number, targetRatio: number | undefined, totalCalories: number) => {
     if (!targetRatio || totalCalories === 0) return 0;
-    const targetGrams = (targetRatio / 100) * totalCalories / (targetRatio === goals?.targetFatRatio ? 9 : 4);
+    const targetGrams = (targetRatio / 100) * totalCalories / (targetRatio === goals?.target_fat_ratio ? 9 : 4);
     return (current / targetGrams) * 100;
   };
 
-  const proteinProgress = getMacroProgress(data.protein || 0, goals?.targetProteinRatio, currentCalories);
-  const carbsProgress = getMacroProgress(data.carbs || 0, goals?.targetCarbsRatio, currentCalories);
-  const fatProgress = getMacroProgress(data.fat || 0, goals?.targetFatRatio, currentCalories);
+  const proteinProgress = getMacroProgress(data.protein || 0, goals?.target_protein_ratio, currentCalories);
+  const carbsProgress = getMacroProgress(data.carbs || 0, goals?.target_carbs_ratio, currentCalories);
+  const fatProgress = getMacroProgress(data.fat || 0, goals?.target_fat_ratio, currentCalories);
 
   return (
     <>
@@ -390,21 +419,21 @@ const DailyOverview: React.FC<DailyOverviewProps> = ({ data, goals: initialGoals
             <Box p={4} bg="brand.100" borderRadius="md" boxShadow="sm">
               <Text color="text.light" fontSize="sm" fontWeight="medium">Protein</Text>
               <Text fontSize="3xl" color="accent.600" fontWeight="bold">{data.protein || 0} g</Text>
-              <Text color="text.light" fontSize="sm">Target: {goals?.targetProteinRatio || '--'}%</Text>
+              <Text color="text.light" fontSize="sm">Target: {goals?.target_protein_ratio || '--'}%</Text>
               <Progress value={proteinProgress} size="sm" colorScheme={proteinProgress > 100 ? 'orange' : 'teal'} mt={2} borderRadius="md" />
             </Box>
 
             <Box p={4} bg="brand.100" borderRadius="md" boxShadow="sm">
               <Text color="text.light" fontSize="sm" fontWeight="medium">Carbohydrates</Text>
               <Text fontSize="3xl" color="accent.600" fontWeight="bold">{data.carbs || 0} g</Text>
-              <Text color="text.light" fontSize="sm">Target: {goals?.targetCarbsRatio || '--'}%</Text>
+              <Text color="text.light" fontSize="sm">Target: {goals?.target_carbs_ratio || '--'}%</Text>
               <Progress value={carbsProgress} size="sm" colorScheme={carbsProgress > 100 ? 'orange' : 'teal'} mt={2} borderRadius="md" />
             </Box>
 
             <Box p={4} bg="brand.100" borderRadius="md" boxShadow="sm">
               <Text color="text.light" fontSize="sm" fontWeight="medium">Fats</Text>
               <Text fontSize="3xl" color="accent.600" fontWeight="bold">{data.fat || 0} g</Text>
-              <Text color="text.light" fontSize="sm">Target: {goals?.targetFatRatio || '--'}%</Text>
+              <Text color="text.light" fontSize="sm">Target: {goals?.target_fat_ratio || '--'}%</Text>
               <Progress value={fatProgress} size="sm" colorScheme={fatProgress > 100 ? 'orange' : 'teal'} mt={2} borderRadius="md" />
             </Box>
           </SimpleGrid>
@@ -419,17 +448,17 @@ const DailyOverview: React.FC<DailyOverviewProps> = ({ data, goals: initialGoals
               <VStack align="flex-start" gap={2} color="text.dark">
                 <Text>
                   <Text as="span" fontWeight="semibold">Target Weight:</Text>{' '}
-                  {goals.targetWeightKg ? `${goals.targetWeightKg} kg` : 'Not set'}
+                  {goals.target_weight_kg ? `${goals.target_weight_kg} kg` : 'Not set'}
                 </Text>
                 <Text>
                   <Text as="span" fontWeight="semibold">Target Calories:</Text>{' '}
-                  {goals.targetCalories ? `${goals.targetCalories} kcal` : 'Not set'}
+                  {goals.target_calories ? `${goals.target_calories} kcal` : 'Not set'}
                 </Text>
                 <Text>
                   <Text as="span" fontWeight="semibold">Macro Ratios:</Text>{' '}
-                  {goals.targetProteinRatio || '--'}% Protein,{' '}
-                  {goals.targetCarbsRatio || '--'}% Carbs,{' '}
-                  {goals.targetFatRatio || '--'}% Fat
+                  {goals.target_protein_ratio || '--'}% Protein,{' '}
+                  {goals.target_carbs_ratio || '--'}% Carbs,{' '}
+                  {goals.target_fat_ratio || '--'}% Fat
                 </Text>
               </VStack>
             ) : (
@@ -570,7 +599,7 @@ const DailyOverview: React.FC<DailyOverviewProps> = ({ data, goals: initialGoals
                         {msg.is_bot ? "Assistant" : "You"}
                       </Text>
                       <Text>{msg.message}</Text>
-                      {msg.metadata && (
+                      {msg.metadata && Object.keys(msg.metadata).length > 0 && (
                         <Text fontSize="xs" color="gray.500" mt={1}>
                           {JSON.stringify(msg.metadata)}
                         </Text>

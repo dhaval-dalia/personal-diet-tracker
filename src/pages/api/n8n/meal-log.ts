@@ -2,81 +2,43 @@
 // This Next.js API route acts as a secure proxy for the n8n Meal Logging Workflow.
 // It receives meal data from the frontend and securely forwards it to the n8n webhook URL.
 
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@supabase/supabase-js';
-
-// Create a service role client for server-side operations
-const supabaseAdmin = createClient(
-  'https://mhqtlftcuefoaqzmvlpq.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ocXRsZnRjdWVmb2Fxem12bHBxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODA5MjgzNSwiZXhwIjoyMDYzNjY4ODM1fQ.WF3tNivX-0kZ0Ua9F0EleC0FZyAxucodLCYc7_m5-uQ',
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
+import { NextApiRequest, NextApiResponse } from 'next';
+import { corsHeaders } from '../../../utils/cors';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Ensure the request method is POST
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method Not Allowed' });
+  // Handle CORS preflight request
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    return res.status(200).end();
   }
 
-  // Ensure the n8n webhook URL is configured
-  const n8nWebhookUrl = process.env.N8N_MEAL_LOGGING_WEBHOOK_URL || 'http://localhost:5678/webhook/log-meal';
-  if (!n8nWebhookUrl) {
-    console.error('N8N_MEAL_LOGGING_WEBHOOK_URL is not set in environment variables!');
-    return res.status(500).json({ message: 'Server configuration error: n8n webhook URL missing.' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { userId, mealData } = req.body;
-
-    // Validate required fields
-    if (!userId || !mealData) {
-      return res.status(400).json({ 
-        message: 'Missing required fields',
-        details: {
-          userId: !userId,
-          mealData: !mealData
-        }
-      });
-    }
-
-    // Verify user exists in Supabase
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
-    if (userError || !userData) {
-      console.error('User verification failed:', userError);
-      return res.status(401).json({ message: 'Invalid user' });
-    }
-
-    // Forward the request to the n8n webhook
-    const n8nResponse = await fetch(n8nWebhookUrl, {
+    const response = await fetch(process.env.N8N_MEAL_LOG_WEBHOOK_URL!, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-User-ID': userId,
       },
-      body: JSON.stringify({ userId, mealData }),
+      body: JSON.stringify(req.body),
     });
 
-    // Check if the n8n webhook call was successful
-    if (!n8nResponse.ok) {
-      const errorData = await n8nResponse.text();
-      console.error(`Error from n8n meal logging webhook (Status: ${n8nResponse.status}):`, errorData);
-      throw new Error(`n8n meal logging webhook failed with status: ${n8nResponse.status}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to log meal');
     }
 
-    // Parse n8n's response and send it back to the client
-    const data = await n8nResponse.json();
-    return res.status(200).json({ success: true, data });
-
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.status(200).json(data);
   } catch (error: any) {
-    console.error('API route error for n8n meal logging:', error);
-    return res.status(500).json({ 
-      message: error.message || 'Internal Server Error during meal logging.',
-      error: error.toString()
-    });
+    console.error('Error in meal-log API:', error);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.status(500).json({ error: error.message });
   }
 }

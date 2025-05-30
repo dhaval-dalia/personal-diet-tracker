@@ -10,7 +10,8 @@ import {
   Input,
   Avatar,
   useDisclosure,
-  SlideFade
+  SlideFade,
+  useToast
 } from '@chakra-ui/react';
 import { FaRobot, FaTimes } from 'react-icons/fa';
 import DailyOverview from './DailyOverview';
@@ -19,63 +20,130 @@ import ProgressTracker from './ProgressTracker';
 import RecommendationCard from './RecommendationCard';
 import ProfileCompletionCheck from './ProfileCompletionCheck';
 import { useAuth } from '../../hooks/useAuth';
+import { supabase } from '../../services/supabase';
 
 interface DashboardProps {
   onNavigate: (view: string) => void;
 }
 
+interface ChatMessage {
+  text: string;
+  isBot: boolean;
+  metadata?: Record<string, any>;
+  created_at?: string;
+}
+
 const ChatBot: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const [messages, setMessages] = useState<Array<{ text: string; isBot: boolean }>>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const { user } = useAuth();
+  const toast = useToast();
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim()) return;
+    if (!inputMessage.trim() || !user?.id) return;
 
-    // Add user message
-    const newMessages = [...messages, { text: inputMessage, isBot: false }];
-    setMessages(newMessages);
+    const userMessage = inputMessage.trim();
     setInputMessage('');
     setIsProcessing(true);
 
     try {
+      // Save user message to Supabase
+      const { error: saveError } = await supabase
+        .from('chat_interactions')
+        .insert([{
+          user_id: user.id,
+          message: userMessage,
+          is_bot: false,
+          created_at: new Date().toISOString(),
+          metadata: {}
+        }]);
+
+      if (saveError) throw new Error('Failed to save user message');
+
+      // Add user message to UI
+      const newMessages = [...messages, { 
+        text: userMessage, 
+        isBot: false,
+        created_at: new Date().toISOString()
+      }];
+      setMessages(newMessages);
+
       // Send to n8n webhook
-      const response = await fetch('/api/n8n/chat-process', {
+      const webhookData = {
+        event_type: 'chat_message',
+        payload: {
+          user_id: user.id,
+          message: userMessage,
+          created_at: new Date().toISOString(),
+          context: {
+            platform: 'web',
+            source: 'chat-widget',
+            version: '1.0'
+          }
+        }
+      };
+
+      const response = await fetch(process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || '', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user?.id}`
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_N8N_API_KEY}`,
+          'Accept': 'application/json'
         },
-        body: JSON.stringify({
-          message: inputMessage,
-          userId: user?.id
-        })
+        body: JSON.stringify(webhookData)
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to get response from assistant');
+      }
 
       const data = await response.json();
       
-      // Add bot response
-      setMessages([...newMessages, { text: data.recommendation, isBot: true }]);
-      
-      // If confirmed, save to Supabase
-      if (data.confirmed) {
-        await fetch('/api/save-chat-data', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userId: user?.id,
-            data: data.processedData
-          })
-        });
+      // Validate response data structure
+      if (!data.message || typeof data.message !== 'string') {
+        throw new Error('Invalid response format from assistant');
       }
+
+      // Save bot response to Supabase
+      const { error: botSaveError } = await supabase
+        .from('chat_interactions')
+        .insert([{
+          user_id: user.id,
+          message: data.message,
+          is_bot: true,
+          created_at: new Date().toISOString(),
+          metadata: data.metadata || {},
+          response: {
+            message: data.message,
+            metadata: data.metadata || {},
+            timestamp: new Date().toISOString()
+          }
+        }]);
+
+      if (botSaveError) throw new Error('Failed to save bot response');
+
+      // Add bot response to UI
+      setMessages([...newMessages, { 
+        text: data.message, 
+        isBot: true,
+        created_at: new Date().toISOString(),
+        metadata: data.metadata
+      }]);
+
     } catch (error) {
       console.error('Chat error:', error);
-      setMessages([...newMessages, { 
+      toast({
+        title: 'Error',
+        description: 'Failed to process message. Please try again.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      setMessages([...messages, { 
         text: 'Sorry, I encountered an error. Please try again.', 
-        isBot: true 
+        isBot: true,
+        created_at: new Date().toISOString()
       }]);
     } finally {
       setIsProcessing(false);
@@ -129,6 +197,11 @@ const ChatBot: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 <Text fontSize="sm" color="gray.800">
                   {msg.text}
                 </Text>
+                {msg.metadata && Object.keys(msg.metadata).length > 0 && (
+                  <Text fontSize="xs" color="gray.500" mt={1}>
+                    {JSON.stringify(msg.metadata)}
+                  </Text>
+                )}
               </Box>
             </SlideFade>
           ))}
@@ -222,7 +295,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       </Box>
 
       <DailyOverview />
-      <NutritionChart />
+      <NutritionChart onNavigate={onNavigate} />
       <ProgressTracker />
       <RecommendationCard />
     </VStack>

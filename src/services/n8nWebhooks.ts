@@ -5,12 +5,12 @@
 
 import { supabase } from './supabase';
 
-interface MealLogData {
-  userId: string;
-  mealType: string;
-  mealDate: string;
-  mealTime: string;
-  foodItems: Array<{
+export interface MealLogData {
+  user_id: string;
+  meal_type: string;
+  meal_date: string;
+  meal_time: string;
+  food_items: Array<{
     name: string;
     calories: number;
     protein: number;
@@ -21,13 +21,13 @@ interface MealLogData {
     barcode?: string;
   }>;
   notes?: string;
-  timestamp: string;
+  created_at: string;
 }
 
 interface ChatMessageData {
-  userId: string;
+  user_id: string;
   message: string;
-  timestamp: string;
+  created_at: string;
   response?: string;
   context: {
     platform: string;
@@ -36,8 +36,8 @@ interface ChatMessageData {
 }
 
 interface OnboardingData {
-  userId: string;
-  timestamp: string;
+  user_id: string;
+  created_at: string;
   context: {
     platform: string;
     source: string;
@@ -45,8 +45,8 @@ interface OnboardingData {
 }
 
 interface RecommendationRequest {
-  userId: string;
-  timestamp: string;
+  user_id: string;
+  created_at: string;
   context: {
     platform: string;
     source: string;
@@ -68,12 +68,12 @@ export const logMeal = async (mealData: MealLogData) => {
     const { data: mealLogData, error: mealLogError } = await supabase
       .from('meal_logs')
       .insert([{
-        user_id: mealData.userId,
-        meal_type: mealData.mealType,
-        meal_date: mealData.mealDate,
-        meal_time: mealData.mealTime,
+        user_id: mealData.user_id,
+        meal_type: mealData.meal_type,
+        meal_date: mealData.meal_date,
+        meal_time: mealData.meal_time,
         notes: mealData.notes,
-        created_at: mealData.timestamp
+        created_at: mealData.created_at
       }])
       .select()
       .single();
@@ -86,7 +86,7 @@ export const logMeal = async (mealData: MealLogData) => {
     console.log('Meal log saved:', mealLogData);
 
     // Then save food items
-    const foodItems = mealData.foodItems.map(item => ({
+    const foodItems = mealData.food_items.map(item => ({
       meal_log_id: mealLogData.id,
       name: item.name,
       calories: item.calories,
@@ -136,7 +136,7 @@ export const processChatMessage = async (data: ChatMessageData) => {
       .from('chat_interactions')
       .insert([
         {
-          user_id: data.userId,
+          user_id: data.user_id,
           message: data.message,
           response: data.response,
           confirmed: true,
@@ -209,8 +209,8 @@ export const requestRecommendations = async (userId: string) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        userId,
-        timestamp: new Date().toISOString(),
+        user_id: userId,
+        created_at: new Date().toISOString(),
         context: {
           platform: 'web',
           source: 'recommendations-widget'

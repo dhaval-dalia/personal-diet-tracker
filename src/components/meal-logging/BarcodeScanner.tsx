@@ -8,13 +8,26 @@ import { useZxing } from 'react-zxing';
 import { Box, Button, Text, VStack, Center, Icon, Heading } from '@chakra-ui/react';
 import { FaBarcode, FaLightbulb, FaRegLightbulb } from 'react-icons/fa';
 import { useErrorHandling } from '../../hooks/useErrorHandling';
+import { supabase } from '../../services/supabase';
 
-interface BarcodeScannerProps {
-  onScan: (barcode: string) => void;
-  onClose: () => void;
+// Define a basic type for a food item from search results
+export interface ScannedFoodItem {
+  id: string;
+  name: string;
+  calories_per_serving: number;
+  protein_per_serving: number;
+  carbs_per_serving: number;
+  fat_per_serving: number;
+  serving_size: number;
+  serving_unit: string;
+  barcode: string;
 }
 
-const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose }) => {
+interface BarcodeScannerProps {
+  onBarcodeScanned: (food: ScannedFoodItem) => void;
+}
+
+const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onBarcodeScanned }) => {
   const [result, setResult] = useState('');
   const { showToast, handleError } = useErrorHandling();
 
@@ -22,12 +35,41 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose }) => {
     onDecodeResult(decodedResult) {
       const barcode = decodedResult.getText();
       setResult(barcode);
-      onScan(barcode);
-      showToast({
-        title: 'Barcode Scanned!',
-        description: `Found: ${barcode}`,
-        status: 'success',
-      });
+      
+      // Look up the food item in the database
+      const lookupFoodItem = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('food_items')
+            .select('*')
+            .eq('barcode', barcode)
+            .single();
+
+          if (error) {
+            if (error.code === 'PGRST116') {
+              // No food item found with this barcode
+              showToast({
+                title: 'Food Not Found',
+                description: 'This barcode is not in our database. You can add it manually.',
+                status: 'warning',
+              });
+            } else {
+              throw error;
+            }
+          } else if (data) {
+            onBarcodeScanned(data as ScannedFoodItem);
+            showToast({
+              title: 'Food Found!',
+              description: `Found: ${data.name}`,
+              status: 'success',
+            });
+          }
+        } catch (error: unknown) {
+          handleError(error, 'Failed to look up food item');
+        }
+      };
+
+      lookupFoodItem();
     },
     onDecodeError(error) {
       // Silent handling of decode errors
@@ -37,7 +79,6 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose }) => {
         ? 'Please grant camera permissions to use the barcode scanner.'
         : 'Could not access camera. Ensure no other application is using it.';
       handleError(error, errorMessage);
-      onClose();
     },
     constraints: {
       video: { facingMode: 'environment' },
@@ -112,18 +153,6 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose }) => {
             Last Scanned: <Text as="span" fontWeight="bold" color="accent.600">{result}</Text>
           </Text>
         )}
-
-        <Button
-          onClick={onClose}
-          colorScheme="red"
-          variant="solid"
-          mt={4}
-          bg="red.300"
-          color="white"
-          _hover={{ bg: 'red.400' }}
-        >
-          Close Scanner
-        </Button>
       </VStack>
     </Box>
   );

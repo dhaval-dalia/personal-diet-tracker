@@ -6,12 +6,11 @@
 import { useState, useCallback } from 'react';
 import { useErrorHandling } from './useErrorHandling';
 import { useAuth } from './useAuth';
-import { logMeal } from '../services/n8nWebhooks';
+import { logMeal, MealLogData } from '../services/n8nWebhooks';
 import { mealLogSchema, foodItemSchema } from '../utils/validation';
 import { z } from 'zod';
 
 // Define types for meal and food items based on Zod schemas
-export type MealLogData = z.infer<typeof mealLogSchema>;
 export type FoodItemData = z.infer<typeof foodItemSchema>;
 
 export const useMealLogging = () => {
@@ -24,7 +23,7 @@ export const useMealLogging = () => {
    * Submits meal data to the n8n meal logging workflow.
    * @param mealData - The complete meal log data.
    */
-  const submitMealLog = useCallback(async (mealData: Omit<MealLogData, 'userId' | 'timestamp'>) => {
+  const submitMealLog = useCallback(async (mealData: Omit<MealLogData, 'user_id' | 'created_at'>) => {
     if (!user?.id) throw new Error('User must be logged in to log meals');
     
     setIsLogging(true);
@@ -32,8 +31,8 @@ export const useMealLogging = () => {
     try {
       const completeMealData: MealLogData = {
         ...mealData,
-        userId: user.id,
-        timestamp: new Date().toISOString()
+        user_id: user.id,
+        created_at: new Date().toISOString()
       };
 
       mealLogSchema.parse(completeMealData);

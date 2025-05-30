@@ -15,19 +15,24 @@ import {
   Heading,
   Text,
 } from '@chakra-ui/react';
-import { foodItemSchema } from '../../utils/validation';
 import { useErrorHandling } from '../../hooks/useErrorHandling';
-import { FoodItemData } from '../../hooks/useMealLogging';
 
-const quickAddFoodSchema = foodItemSchema.pick({ name: true, calories: true }).extend({
-  quantity: z.number().min(0.1, 'Quantity must be greater than 0'),
-  unit: z.string(),
+// Define the schema for quick add food items
+const quickAddFoodSchema = z.object({
+  name: z.string().min(1, 'Food name is required'),
+  calories_per_serving: z.number().min(0, 'Calories must be 0 or greater'),
+  protein_per_serving: z.number().min(0, 'Protein must be 0 or greater'),
+  carbs_per_serving: z.number().min(0, 'Carbs must be 0 or greater'),
+  fat_per_serving: z.number().min(0, 'Fat must be 0 or greater'),
+  serving_size: z.number().min(0.1, 'Serving size must be greater than 0'),
+  serving_unit: z.string().min(1, 'Serving unit is required'),
+  barcode: z.string().optional(),
 });
 
 type QuickAddFoodInputs = z.infer<typeof quickAddFoodSchema>;
 
 interface QuickAddProps {
-  onQuickAdd: (food: FoodItemData) => void;
+  onQuickAdd: (food: QuickAddFoodInputs) => void;
 }
 
 const QuickAdd: React.FC<QuickAddProps> = ({ onQuickAdd }) => {
@@ -42,22 +47,18 @@ const QuickAdd: React.FC<QuickAddProps> = ({ onQuickAdd }) => {
     resolver: zodResolver(quickAddFoodSchema),
     defaultValues: {
       name: '',
-      calories: 0,
-      quantity: 1,
-      unit: 'serving',
+      calories_per_serving: 0,
+      protein_per_serving: 0,
+      carbs_per_serving: 0,
+      fat_per_serving: 0,
+      serving_size: 1,
+      serving_unit: 'serving',
     },
   });
 
   const onSubmit = (data: QuickAddFoodInputs) => {
     try {
-      const fullFoodItem: FoodItemData = {
-        ...data,
-        protein: 0,
-        carbs: 0,
-        fat: 0,
-        barcode: undefined,
-      };
-      onQuickAdd(fullFoodItem);
+      onQuickAdd(data);
       showToast({
         title: 'Food Added!',
         description: `${data.name} added to your meal.`,
@@ -106,46 +107,46 @@ const QuickAdd: React.FC<QuickAddProps> = ({ onQuickAdd }) => {
                 min={0}
                 max={5000}
                 step={1}
-                {...register('calories', { valueAsNumber: true })}
+                {...register('calories_per_serving', { valueAsNumber: true })}
                 placeholder="e.g., 100"
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-300 focus:ring-brand-300"
               />
-              {errors.calories && (
-                <p className="mt-1 text-sm text-red-600">{errors.calories.message}</p>
+              {errors.calories_per_serving && (
+                <p className="mt-1 text-sm text-red-600">{errors.calories_per_serving.message}</p>
               )}
             </div>
 
             <div>
-              <label htmlFor="quick-quantity" className="block text-sm font-medium text-gray-700">
-                Quantity
+              <label htmlFor="quick-serving-size" className="block text-sm font-medium text-gray-700">
+                Serving Size
               </label>
               <Input
-                id="quick-quantity"
+                id="quick-serving-size"
                 type="number"
                 min={0.1}
                 max={100}
                 step={0.1}
-                {...register('quantity', { valueAsNumber: true })}
+                {...register('serving_size', { valueAsNumber: true })}
                 placeholder="e.g., 1"
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-300 focus:ring-brand-300"
               />
-              {errors.quantity && (
-                <p className="mt-1 text-sm text-red-600">{errors.quantity.message}</p>
+              {errors.serving_size && (
+                <p className="mt-1 text-sm text-red-600">{errors.serving_size.message}</p>
               )}
             </div>
 
             <div>
-              <label htmlFor="quick-unit" className="block text-sm font-medium text-gray-700">
-                Unit
+              <label htmlFor="quick-serving-unit" className="block text-sm font-medium text-gray-700">
+                Serving Unit
               </label>
               <Input
-                id="quick-unit"
-                {...register('unit')}
+                id="quick-serving-unit"
+                {...register('serving_unit')}
                 placeholder="e.g., serving, piece, g"
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-300 focus:ring-brand-300"
               />
-              {errors.unit && (
-                <p className="mt-1 text-sm text-red-600">{errors.unit.message}</p>
+              {errors.serving_unit && (
+                <p className="mt-1 text-sm text-red-600">{errors.serving_unit.message}</p>
               )}
             </div>
 

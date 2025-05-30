@@ -39,7 +39,7 @@ import { useRouter } from 'next/router';
 
 // Inline validation schema
 const onboardingSchema = z.object({
-  fullName: z.string()
+  full_name: z.string()
     .min(2, 'Name must be at least 2 characters')
     .max(50, 'Name must not exceed 50 characters')
     .regex(/^[a-zA-Z\s-']+$/, 'Name can only contain letters, spaces, hyphens, and apostrophes'),
@@ -52,18 +52,18 @@ const onboardingSchema = z.object({
   profession: z.string()
     .min(2, 'Profession must be at least 2 characters')
     .max(100, 'Profession must not exceed 100 characters'),
-  workHours: z.object({
+  work_hours: z.object({
     start: z.string().optional(),
     end: z.string().optional(),
     days: z.array(z.string()).min(1, 'Please select at least one work day')
   }),
-  heightCm: z.number()
+  height_cm: z.number()
     .min(50, 'Height must be at least 50 cm')
     .max(250, 'Height must not exceed 250 cm'),
-  weightKg: z.number()
+  weight_kg: z.number()
     .min(20, 'Weight must be at least 20 kg')
     .max(300, 'Weight must not exceed 300 kg'),
-  activityLevel: z.enum([
+  activity_level: z.enum([
     'sedentary',
     'lightly_active',
     'moderately_active',
@@ -72,29 +72,29 @@ const onboardingSchema = z.object({
   ], {
     required_error: 'Please select one from the given list',
   }),
-  dietaryRestrictions: z.array(z.string())
+  dietary_restrictions: z.array(z.string())
     .min(1, 'Please select at least one food preference')
     .max(10, 'You can select up to 10 food preferences'),
   allergies: z.array(z.string())
     .max(10, 'You can select up to 10 allergies'),
-  customAllergies: z.string()
+  custom_allergies: z.string()
     .max(200, 'Custom allergies description is too long')
     .optional(),
-  medicalConditions: z.array(z.string())
+  medical_conditions: z.array(z.string())
     .min(1, 'Please select at least one option')
     .max(10, 'You can select up to 10 medical conditions'),
-  preferredMealTimes: z.object({
+  preferred_meal_times: z.object({
     breakfast: z.string().optional(),
     lunch: z.string().optional(),
     dinner: z.string().optional()
   }).optional(),
-  fitnessLevel: z.enum(['beginner', 'intermediate', 'advanced'], {
+  fitness_level: z.enum(['beginner', 'intermediate', 'advanced'], {
     required_error: 'Please select your fitness level'
   }),
-  preferredWorkoutDays: z.array(z.string())
+  preferred_workout_days: z.array(z.string())
     .min(1, 'Please select at least one preferred workout day')
     .max(7, 'You can select up to 7 days'),
-  goal: z.enum([
+  goal_type: z.enum([
     'lose_weight',
     'maintain_weight',
     'gain_weight',
@@ -102,32 +102,32 @@ const onboardingSchema = z.object({
   ], {
     required_error: 'Please select one from the given list',
   }),
-  targetWeight: z.number()
+  target_weight: z.number()
     .min(20, 'Target weight must be at least 20 kg')
     .max(300, 'Target weight must not exceed 300 kg')
     .optional(),
-  targetDate: z.string().optional(),
-  weeklyWorkoutGoal: z.number()
+  target_date: z.string().optional(),
+  weekly_workout_goal: z.number()
     .min(0, 'Weekly workout goal must be at least 0 days')
     .max(7, 'Weekly workout goal cannot exceed 7 days')
     .optional(),
-  waterIntakeGoal: z.number()
+  water_intake_goal: z.number()
     .min(0, 'Water intake goal must be at least 0 liters')
     .max(10, 'Water intake goal cannot exceed 10 liters')
     .optional(),
-  sleepGoal: z.number()
+  sleep_goal: z.number()
     .min(4, 'Sleep goal must be at least 4 hours')
     .max(12, 'Sleep goal cannot exceed 12 hours')
     .optional(),
-  mealPrepPreference: z.enum(['daily', 'weekly', 'none']).optional(),
+  meal_prep_preference: z.enum(['daily', 'weekly', 'none']).optional(),
 }).refine(data => {
-  if (data.goal === 'lose_weight' && data.targetWeight) {
-    return data.targetWeight < data.weightKg;
+  if (data.goal_type === 'lose_weight' && data.target_weight) {
+    return data.target_weight < data.weight_kg;
   }
   return true;
 }, {
   message: 'Target weight must be less than current weight for weight loss goals',
-  path: ['targetWeight'],
+  path: ['target_weight'],
 });
 
 type OnboardingFormInputs = z.infer<typeof onboardingSchema>;
@@ -157,20 +157,20 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
   } = useForm<OnboardingFormInputs>({
     resolver: zodResolver(onboardingSchema),
     defaultValues: {
-      dietaryRestrictions: [],
+      dietary_restrictions: [],
       allergies: [],
-      medicalConditions: [],
-      preferredMealTimes: {},
-      preferredWorkoutDays: [],
-      workHours: {
+      medical_conditions: [],
+      preferred_meal_times: {},
+      preferred_workout_days: [],
+      work_hours: {
         start: '',
         end: '',
         days: []
       },
-      weeklyWorkoutGoal: 3,
-      waterIntakeGoal: 2,
-      sleepGoal: 8,
-      mealPrepPreference: 'daily'
+      weekly_workout_goal: 3,
+      water_intake_goal: 2,
+      sleep_goal: 8,
+      meal_prep_preference: 'daily'
     },
   });
 
@@ -235,35 +235,33 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
 
     setIsSubmitting(true);
     try {
-      // Log the user ID and data being saved
       console.log('Current user:', user);
       console.log('Form data to be saved:', data);
 
-      // Save all data to user_profiles table
       const profileData = {
         user_id: user.id,
-        full_name: data.fullName,
+        full_name: data.full_name,
         age: data.age,
         gender: data.gender,
         profession: data.profession,
-        work_hours: calculateAverageWorkHours(data.workHours),
-        height_cm: data.heightCm,
-        weight_kg: data.weightKg,
-        activity_level: data.activityLevel,
-        dietary_restrictions: data.dietaryRestrictions || [],
+        work_hours: calculateAverageWorkHours(data.work_hours),
+        height_cm: data.height_cm,
+        weight_kg: data.weight_kg,
+        activity_level: data.activity_level,
+        dietary_restrictions: data.dietary_restrictions || [],
         allergies: data.allergies || [],
-        custom_allergies: data.customAllergies || null,
-        medical_conditions: data.medicalConditions || [],
-        preferred_meal_times: data.preferredMealTimes || {},
-        fitness_level: (data.fitnessLevel || 'beginner') as 'beginner' | 'intermediate' | 'advanced',
-        preferred_workout_days: data.preferredWorkoutDays || [],
-        goal_type: data.goal,
-        target_weight: data.targetWeight || null,
-        target_date: data.targetDate || null,
-        weekly_workout_goal: data.weeklyWorkoutGoal || 3,
-        water_intake_goal: data.waterIntakeGoal || 2,
-        sleep_goal: data.sleepGoal || 8,
-        meal_prep_preference: data.mealPrepPreference || 'daily',
+        custom_allergies: data.custom_allergies || null,
+        medical_conditions: data.medical_conditions || [],
+        preferred_meal_times: data.preferred_meal_times || {},
+        fitness_level: (data.fitness_level || 'beginner') as 'beginner' | 'intermediate' | 'advanced',
+        preferred_workout_days: data.preferred_workout_days || [],
+        goal_type: data.goal_type,
+        target_weight: data.target_weight || null,
+        target_date: data.target_date || null,
+        weekly_workout_goal: data.weekly_workout_goal || 3,
+        water_intake_goal: data.water_intake_goal || 2,
+        sleep_goal: data.sleep_goal || 8,
+        meal_prep_preference: data.meal_prep_preference || 'daily',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -284,8 +282,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
       // Trigger onboarding workflow
       console.log('Triggering onboarding workflow...');
       await triggerOnboarding({
-        userId: user.id,
-        timestamp: new Date().toISOString(),
+        user_id: user.id,
+        created_at: new Date().toISOString(),
         context: {
           platform: 'web',
           source: 'onboarding-flow'
@@ -327,9 +325,9 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
 
   const validateCurrentStep = async () => {
     const currentStepFields = {
-      1: ['fullName', 'age', 'gender', 'heightCm', 'weightKg', 'activityLevel'] as const,
-      2: ['dietaryRestrictions', 'allergies', 'medicalConditions', 'preferredMealTimes', 'fitnessLevel', 'preferredWorkoutDays'] as const,
-      3: ['goal', 'targetWeight', 'targetDate', 'weeklyWorkoutGoal', 'waterIntakeGoal', 'sleepGoal', 'mealPrepPreference'] as const
+      1: ['full_name', 'age', 'gender', 'height_cm', 'weight_kg', 'activity_level'] as const,
+      2: ['dietary_restrictions', 'allergies', 'medical_conditions', 'preferred_meal_times', 'fitness_level', 'preferred_workout_days'] as const,
+      3: ['goal_type', 'target_weight', 'target_date', 'weekly_workout_goal', 'water_intake_goal', 'sleep_goal', 'meal_prep_preference'] as const
     };
 
     const fieldsToValidate = currentStepFields[step as keyof typeof currentStepFields];
@@ -356,13 +354,13 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
         <form onSubmit={handleSubmit(onSubmit)}>
           {step === 1 && (
             <VStack spacing={4}>
-              <FormControl isInvalid={!!errors.fullName}>
+              <FormControl isInvalid={!!errors.full_name}>
                 <FormLabel>Full Name</FormLabel>
                 <Input 
-                  {...register('fullName')} 
+                  {...register('full_name')} 
                   placeholder="Enter your full name"
                 />
-                <FormErrorMessage>{errors.fullName?.message}</FormErrorMessage>
+                <FormErrorMessage>{errors.full_name?.message}</FormErrorMessage>
               </FormControl>
 
               <FormControl isInvalid={!!errors.age}>
@@ -396,17 +394,17 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
                 <FormErrorMessage>{errors.profession?.message}</FormErrorMessage>
               </FormControl>
 
-              <FormControl isInvalid={!!errors.workHours}>
+              <FormControl isInvalid={!!errors.work_hours}>
                 <FormLabel>Work Hours</FormLabel>
                 <VStack spacing={2}>
                   <HStack>
                     <Text>Start Time:</Text>
                     <Input 
                       type="time" 
-                      {...register('workHours.start')}
+                      {...register('work_hours.start')}
                       onChange={(e) => {
-                        setValue('workHours.start', e.target.value);
-                        trigger('workHours');
+                        setValue('work_hours.start', e.target.value);
+                        trigger('work_hours');
                       }}
                     />
                   </HStack>
@@ -414,18 +412,18 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
                     <Text>End Time:</Text>
                     <Input 
                       type="time" 
-                      {...register('workHours.end')}
+                      {...register('work_hours.end')}
                       onChange={(e) => {
-                        setValue('workHours.end', e.target.value);
-                        trigger('workHours');
+                        setValue('work_hours.end', e.target.value);
+                        trigger('work_hours');
                       }}
                     />
                   </HStack>
                   <FormLabel>Work Days</FormLabel>
                   <CheckboxGroup 
                     onChange={(values: string[]) => {
-                      setValue('workHours.days', values);
-                      trigger('workHours');
+                      setValue('work_hours.days', values);
+                      trigger('work_hours');
                     }}
                   >
                     <Stack direction="row" wrap="wrap">
@@ -439,34 +437,34 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
                     </Stack>
                   </CheckboxGroup>
                 </VStack>
-                <FormErrorMessage>{errors.workHours?.message}</FormErrorMessage>
+                <FormErrorMessage>{errors.work_hours?.message}</FormErrorMessage>
               </FormControl>
 
-              <FormControl isInvalid={!!errors.heightCm}>
+              <FormControl isInvalid={!!errors.height_cm}>
                 <FormLabel>Height (cm)</FormLabel>
                 <NumberInput min={50} max={250}>
                   <NumberInputField 
-                    {...register('heightCm', { valueAsNumber: true })} 
+                    {...register('height_cm', { valueAsNumber: true })} 
                     placeholder="Enter your height"
                   />
                 </NumberInput>
-                <FormErrorMessage>{errors.heightCm?.message}</FormErrorMessage>
+                <FormErrorMessage>{errors.height_cm?.message}</FormErrorMessage>
               </FormControl>
 
-              <FormControl isInvalid={!!errors.weightKg}>
+              <FormControl isInvalid={!!errors.weight_kg}>
                 <FormLabel>Weight (kg)</FormLabel>
                 <NumberInput min={20} max={300}>
                   <NumberInputField 
-                    {...register('weightKg', { valueAsNumber: true })} 
+                    {...register('weight_kg', { valueAsNumber: true })} 
                     placeholder="Enter your weight"
                   />
                 </NumberInput>
-                <FormErrorMessage>{errors.weightKg?.message}</FormErrorMessage>
+                <FormErrorMessage>{errors.weight_kg?.message}</FormErrorMessage>
               </FormControl>
 
-              <FormControl isInvalid={!!errors.activityLevel}>
+              <FormControl isInvalid={!!errors.activity_level}>
                 <FormLabel>Activity Level</FormLabel>
-                <Select {...register('activityLevel')}>
+                <Select {...register('activity_level')}>
                   <option value="">Select activity level</option>
                   <option value="sedentary">Sedentary</option>
                   <option value="lightly_active">Lightly Active</option>
@@ -474,21 +472,21 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
                   <option value="very_active">Very Active</option>
                   <option value="extra_active">Extra Active</option>
                 </Select>
-                <FormErrorMessage>{errors.activityLevel?.message}</FormErrorMessage>
+                <FormErrorMessage>{errors.activity_level?.message}</FormErrorMessage>
               </FormControl>
             </VStack>
           )}
 
           {step === 2 && (
             <VStack spacing={4}>
-              <FormControl isInvalid={!!errors.dietaryRestrictions}>
+              <FormControl isInvalid={!!errors.dietary_restrictions}>
                 <FormLabel>Food Type Preferences</FormLabel>
                 <CheckboxGroup 
                   onChange={(values: string[]) => {
-                    setValue('dietaryRestrictions', values);
-                    trigger('dietaryRestrictions');
+                    setValue('dietary_restrictions', values);
+                    trigger('dietary_restrictions');
                   }}
-                  defaultValue={watch('dietaryRestrictions')}
+                  defaultValue={watch('dietary_restrictions')}
                 >
                   <Stack>
                     <Checkbox value="vegetarian">Vegetarian</Checkbox>
@@ -502,7 +500,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
                     <Checkbox value="kosher">Kosher</Checkbox>
                   </Stack>
                 </CheckboxGroup>
-                <FormErrorMessage>{errors.dietaryRestrictions?.message}</FormErrorMessage>
+                <FormErrorMessage>{errors.dietary_restrictions?.message}</FormErrorMessage>
               </FormControl>
 
               <FormControl isInvalid={!!errors.allergies}>
@@ -529,30 +527,30 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
                 <FormErrorMessage>{errors.allergies?.message}</FormErrorMessage>
               </FormControl>
 
-              <FormControl isInvalid={!!errors.customAllergies}>
+              <FormControl isInvalid={!!errors.custom_allergies}>
                 <FormLabel>Other Allergies</FormLabel>
                 <Input
                   placeholder="I am allergic to..."
-                  {...register('customAllergies')}
+                  {...register('custom_allergies')}
                   onChange={(e) => {
                     const value = e.target.value;
                     if (value && !value.startsWith('I am allergic to')) {
-                      setValue('customAllergies', `I am allergic to ${value}`);
+                      setValue('custom_allergies', `I am allergic to ${value}`);
                     }
-                    trigger('customAllergies');
+                    trigger('custom_allergies');
                   }}
                 />
-                <FormErrorMessage>{errors.customAllergies?.message}</FormErrorMessage>
+                <FormErrorMessage>{errors.custom_allergies?.message}</FormErrorMessage>
               </FormControl>
 
-              <FormControl isInvalid={!!errors.medicalConditions}>
+              <FormControl isInvalid={!!errors.medical_conditions}>
                 <FormLabel>Medical Conditions</FormLabel>
                 <CheckboxGroup 
                   onChange={(values: string[]) => {
-                    setValue('medicalConditions', values);
-                    trigger('medicalConditions');
+                    setValue('medical_conditions', values);
+                    trigger('medical_conditions');
                   }}
-                  defaultValue={watch('medicalConditions')}
+                  defaultValue={watch('medical_conditions')}
                 >
                   <Stack>
                     <Checkbox value="fit_and_fine">I am fit and fine</Checkbox>
@@ -562,10 +560,10 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
                     <Checkbox value="thyroid">Thyroid Issues</Checkbox>
                   </Stack>
                 </CheckboxGroup>
-                <FormErrorMessage>{errors.medicalConditions?.message}</FormErrorMessage>
+                <FormErrorMessage>{errors.medical_conditions?.message}</FormErrorMessage>
               </FormControl>
 
-              <FormControl isInvalid={!!errors.preferredMealTimes}>
+              <FormControl isInvalid={!!errors.preferred_meal_times}>
                 <FormLabel>Preferred Meal Times</FormLabel>
                 <VStack spacing={2}>
                   <HStack>
@@ -573,10 +571,10 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
                     <Input 
                       type="time" 
                       onChange={(e) => {
-                        setValue('preferredMealTimes.breakfast', e.target.value);
-                        trigger('preferredMealTimes');
+                        setValue('preferred_meal_times.breakfast', e.target.value);
+                        trigger('preferred_meal_times');
                       }}
-                      defaultValue={watch('preferredMealTimes.breakfast')}
+                      defaultValue={watch('preferred_meal_times.breakfast')}
                     />
                   </HStack>
                   <HStack>
@@ -584,10 +582,10 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
                     <Input 
                       type="time" 
                       onChange={(e) => {
-                        setValue('preferredMealTimes.lunch', e.target.value);
-                        trigger('preferredMealTimes');
+                        setValue('preferred_meal_times.lunch', e.target.value);
+                        trigger('preferred_meal_times');
                       }}
-                      defaultValue={watch('preferredMealTimes.lunch')}
+                      defaultValue={watch('preferred_meal_times.lunch')}
                     />
                   </HStack>
                   <HStack>
@@ -595,23 +593,23 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
                     <Input 
                       type="time" 
                       onChange={(e) => {
-                        setValue('preferredMealTimes.dinner', e.target.value);
-                        trigger('preferredMealTimes');
+                        setValue('preferred_meal_times.dinner', e.target.value);
+                        trigger('preferred_meal_times');
                       }}
-                      defaultValue={watch('preferredMealTimes.dinner')}
+                      defaultValue={watch('preferred_meal_times.dinner')}
                     />
                   </HStack>
                 </VStack>
-                <FormErrorMessage>{errors.preferredMealTimes?.message}</FormErrorMessage>
+                <FormErrorMessage>{errors.preferred_meal_times?.message}</FormErrorMessage>
               </FormControl>
 
-              <FormControl isInvalid={!!errors.fitnessLevel}>
+              <FormControl isInvalid={!!errors.fitness_level}>
                 <FormLabel>Fitness Level</FormLabel>
                 <Select 
-                  {...register('fitnessLevel')}
+                  {...register('fitness_level')}
                   onChange={(e) => {
-                    setValue('fitnessLevel', e.target.value as 'beginner' | 'intermediate' | 'advanced');
-                    trigger('fitnessLevel');
+                    setValue('fitness_level', e.target.value as 'beginner' | 'intermediate' | 'advanced');
+                    trigger('fitness_level');
                   }}
                 >
                   <option value="">Select fitness level</option>
@@ -619,17 +617,17 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
                   <option value="intermediate">Intermediate</option>
                   <option value="advanced">Advanced</option>
                 </Select>
-                <FormErrorMessage>{errors.fitnessLevel?.message}</FormErrorMessage>
+                <FormErrorMessage>{errors.fitness_level?.message}</FormErrorMessage>
               </FormControl>
 
-              <FormControl isInvalid={!!errors.preferredWorkoutDays}>
+              <FormControl isInvalid={!!errors.preferred_workout_days}>
                 <FormLabel>Preferred Workout Days</FormLabel>
                 <CheckboxGroup 
                   onChange={(values: string[]) => {
-                    setValue('preferredWorkoutDays', values);
-                    trigger('preferredWorkoutDays');
+                    setValue('preferred_workout_days', values);
+                    trigger('preferred_workout_days');
                   }}
-                  defaultValue={watch('preferredWorkoutDays')}
+                  defaultValue={watch('preferred_workout_days')}
                 >
                   <Stack direction="row" wrap="wrap">
                     <Checkbox value="monday">Mon</Checkbox>
@@ -641,36 +639,36 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
                     <Checkbox value="sunday">Sun</Checkbox>
                   </Stack>
                 </CheckboxGroup>
-                <FormErrorMessage>{errors.preferredWorkoutDays?.message}</FormErrorMessage>
+                <FormErrorMessage>{errors.preferred_workout_days?.message}</FormErrorMessage>
               </FormControl>
             </VStack>
           )}
 
           {step === 3 && (
             <VStack spacing={4}>
-              <FormControl isInvalid={!!errors.goal}>
+              <FormControl isInvalid={!!errors.goal_type}>
                 <FormLabel>Primary Goal</FormLabel>
-                <Select {...register('goal')}>
+                <Select {...register('goal_type')}>
                   <option value="lose_weight">Lose Weight</option>
                   <option value="maintain_weight">Maintain Weight</option>
                   <option value="gain_weight">Gain Weight</option>
                   <option value="build_muscle">Build Muscle</option>
                 </Select>
-                <FormErrorMessage>{errors.goal?.message}</FormErrorMessage>
+                <FormErrorMessage>{errors.goal_type?.message}</FormErrorMessage>
               </FormControl>
 
-              {watch('goal') === 'lose_weight' && (
+              {watch('goal_type') === 'lose_weight' && (
                 <>
                   <FormControl>
                     <FormLabel>Target Weight (kg)</FormLabel>
                     <NumberInput min={20} max={300}>
-                      <NumberInputField {...register('targetWeight', { valueAsNumber: true })} />
+                      <NumberInputField {...register('target_weight', { valueAsNumber: true })} />
                     </NumberInput>
                   </FormControl>
 
                   <FormControl>
                     <FormLabel>Target Date</FormLabel>
-                    <Input type="date" {...register('targetDate')} />
+                    <Input type="date" {...register('target_date')} />
                   </FormControl>
                 </>
               )}
@@ -678,27 +676,27 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onOnboardingComplete })
               <FormControl>
                 <FormLabel>Weekly Workout Goal (days)</FormLabel>
                 <NumberInput min={0} max={7}>
-                  <NumberInputField {...register('weeklyWorkoutGoal', { valueAsNumber: true })} />
+                  <NumberInputField {...register('weekly_workout_goal', { valueAsNumber: true })} />
                 </NumberInput>
               </FormControl>
 
               <FormControl>
                 <FormLabel>Daily Water Intake Goal (liters)</FormLabel>
                 <NumberInput min={0} max={10} step={0.5}>
-                  <NumberInputField {...register('waterIntakeGoal', { valueAsNumber: true })} />
+                  <NumberInputField {...register('water_intake_goal', { valueAsNumber: true })} />
                 </NumberInput>
               </FormControl>
 
               <FormControl>
                 <FormLabel>Sleep Goal (hours)</FormLabel>
                 <NumberInput min={4} max={12}>
-                  <NumberInputField {...register('sleepGoal', { valueAsNumber: true })} />
+                  <NumberInputField {...register('sleep_goal', { valueAsNumber: true })} />
                 </NumberInput>
               </FormControl>
 
               <FormControl>
                 <FormLabel>Meal Prep Preference</FormLabel>
-                <Select {...register('mealPrepPreference')}>
+                <Select {...register('meal_prep_preference')}>
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
                   <option value="none">No Meal Prep</option>

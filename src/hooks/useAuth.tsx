@@ -129,8 +129,8 @@ const AuthProvider = ({ children }: AuthProviderProps): JSX.Element => {
         // Trigger onboarding workflow
         try {
           await triggerOnboarding({
-            userId: authData.user.id,
-            timestamp: new Date().toISOString(),
+            user_id: authData.user.id,
+            created_at: new Date().toISOString(),
             context: {
               platform: 'web',
               source: 'signup'

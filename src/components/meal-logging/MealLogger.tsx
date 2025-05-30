@@ -40,18 +40,20 @@ import {
 } from '@chakra-ui/react';
 import { FaBarcode, FaSearch, FaTrash } from 'react-icons/fa';
 import FoodSearch, { SearchedFoodItem } from './FoodSearch';
-import BarcodeScanner from './BarcodeScanner';
+import BarcodeScanner, { ScannedFoodItem } from './BarcodeScanner';
 import QuickAdd from './QuickAdd';
 import { mealLogSchema, foodItemSchema } from '../../utils/validation';
 import { useMealLogging } from '../../hooks/useMealLogging';
 import { useErrorHandling } from '../../hooks/useErrorHandling';
 import { format } from 'date-fns';
 import { useAuth } from '../../hooks/useAuth';
+import { MealLogData } from '../../services/n8nWebhooks';
 
 // Define the type for the meal log form inputs
-type MealLogFormInputs = z.infer<typeof mealLogSchema>;
+type MealLogFormInputs = Omit<MealLogData, 'user_id' | 'created_at'>;
 
 interface FoodItemData {
+  id?: string;
   name: string;
   calories: number;
   protein: number;
@@ -82,27 +84,39 @@ const MealLogger: React.FC = () => {
   } = useForm<MealLogFormInputs>({
     resolver: zodResolver(mealLogSchema),
     defaultValues: {
-      mealType: 'lunch',
-      mealDate: format(new Date(), 'yyyy-MM-dd'),
-      mealTime: format(new Date(), 'HH:mm'),
-      foodItems: [],
+      meal_type: 'lunch',
+      meal_date: format(new Date(), 'yyyy-MM-dd'),
+      meal_time: format(new Date(), 'HH:mm'),
+      food_items: [],
       notes: '',
     },
   });
 
   const { fields, append, remove } = useFieldArray({
     control,
-    name: 'foodItems',
+    name: 'food_items',
   });
 
-  const handleAddFoodItem = useCallback((food: FoodItemData) => {
-    const existingIndex = fields.findIndex(item => item.name === food.name && item.unit === food.unit);
+  const handleAddFoodItem = useCallback((food: SearchedFoodItem | ScannedFoodItem) => {
+    const foodWithQuantity: FoodItemData = {
+      id: food.id,
+      name: food.name,
+      calories: food.calories_per_serving,
+      protein: food.protein_per_serving,
+      carbs: food.carbs_per_serving,
+      fat: food.fat_per_serving,
+      quantity: 1,
+      unit: food.serving_unit,
+      barcode: food.barcode
+    };
+    
+    const existingIndex = fields.findIndex(item => item.name === food.name && item.unit === food.serving_unit);
 
     if (existingIndex > -1) {
-      const currentQuantity = getValues(`foodItems.${existingIndex}.quantity`);
-      setValue(`foodItems.${existingIndex}.quantity`, currentQuantity + (food.quantity || 1));
+      const currentQuantity = getValues(`food_items.${existingIndex}.quantity`) || 0;
+      setValue(`food_items.${existingIndex}.quantity`, currentQuantity + 1);
     } else {
-      append(food);
+      append(foodWithQuantity);
     }
     onFoodSearchClose();
     onBarcodeScannerClose();
@@ -114,22 +128,25 @@ const MealLogger: React.FC = () => {
         throw new Error('User must be logged in to log meals');
       }
 
-      // Add user ID to the meal data
-      const mealDataWithUser = {
-        ...data,
-        userId: user.id,
-        timestamp: new Date().toISOString()
+      const mealData = {
+        user_id: user.id,
+        meal_type: data.meal_type,
+        meal_date: data.meal_date,
+        meal_time: data.meal_time,
+        food_items: data.food_items,
+        notes: data.notes,
+        created_at: new Date().toISOString()
       };
 
-      console.log('Submitting meal data:', mealDataWithUser);
-      const response = await submitMealLog(mealDataWithUser);
+      console.log('Submitting meal data:', mealData);
+      const response = await submitMealLog(mealData);
       console.log('Meal log response:', response);
 
       reset({
-        mealType: 'lunch',
-        mealDate: format(new Date(), 'yyyy-MM-dd'),
-        mealTime: format(new Date(), 'HH:mm'),
-        foodItems: [],
+        meal_type: 'lunch',
+        meal_date: format(new Date(), 'yyyy-MM-dd'),
+        meal_time: format(new Date(), 'HH:mm'),
+        food_items: [],
         notes: '',
       });
     } catch (error) {
@@ -161,11 +178,11 @@ const MealLogger: React.FC = () => {
         <form onSubmit={handleSubmit(onSubmit)}>
           <Stack gap={4}>
             <HStack gap={4} flexWrap="wrap">
-              <FormControl id="mealType" isInvalid={!!errors.mealType} flex="1">
+              <FormControl id="meal_type" isInvalid={!!errors.meal_type} flex="1">
                 <FormLabel color="text.dark">Meal Type</FormLabel>
                 <Select
                   placeholder="Select meal type"
-                  {...register('mealType')}
+                  {...register('meal_type')}
                   borderColor="brand.200"
                   _focus={{ borderColor: 'brand.300', boxShadow: `0 0 0 1px ${theme.colors.brand['300']}` }}
                 >
@@ -175,29 +192,29 @@ const MealLogger: React.FC = () => {
                   <option value="snack">Snack</option>
                   <option value="other">Other</option>
                 </Select>
-                <FormErrorMessage>{errors.mealType?.message}</FormErrorMessage>
+                <FormErrorMessage>{errors.meal_type?.message}</FormErrorMessage>
               </FormControl>
 
-              <FormControl id="mealDate" isInvalid={!!errors.mealDate} flex="1">
+              <FormControl id="meal_date" isInvalid={!!errors.meal_date} flex="1">
                 <FormLabel color="text.dark">Date</FormLabel>
                 <Input
                   type="date"
-                  {...register('mealDate')}
+                  {...register('meal_date')}
                   borderColor="brand.200"
                   _focus={{ borderColor: 'brand.300', boxShadow: `0 0 0 1px ${theme.colors.brand['300']}` }}
                 />
-                <FormErrorMessage>{errors.mealDate?.message}</FormErrorMessage>
+                <FormErrorMessage>{errors.meal_date?.message}</FormErrorMessage>
               </FormControl>
 
-              <FormControl id="mealTime" isInvalid={!!errors.mealTime} flex="1">
+              <FormControl id="meal_time" isInvalid={!!errors.meal_time} flex="1">
                 <FormLabel color="text.dark">Time</FormLabel>
                 <Input
                   type="time"
-                  {...register('mealTime')}
+                  {...register('meal_time')}
                   borderColor="brand.200"
                   _focus={{ borderColor: 'brand.300', boxShadow: `0 0 0 1px ${theme.colors.brand['300']}` }}
                 />
-                <FormErrorMessage>{errors.mealTime?.message}</FormErrorMessage>
+                <FormErrorMessage>{errors.meal_time?.message}</FormErrorMessage>
               </FormControl>
             </HStack>
 
@@ -248,85 +265,63 @@ const MealLogger: React.FC = () => {
                   borderWidth={1}
                   borderRadius="md"
                   borderColor="brand.200"
-                  bg="brand.50"
                 >
-                  <HStack justifyContent="space-between" alignItems="center">
-                    <Box>
-                      <Text fontWeight="bold" color="text.dark">{item.name}</Text>
+                  <HStack justify="space-between">
+                    <VStack align="start" spacing={1}>
+                      <Text fontWeight="bold">{item.name}</Text>
                       <Text fontSize="sm" color="text.light">
                         {item.calories} kcal | {item.protein}g P | {item.carbs}g C | {item.fat}g F
                       </Text>
-                    </Box>
+                    </VStack>
                     <HStack>
-                      <FormControl isInvalid={!!errors.foodItems?.[index]?.quantity} width="100px">
-                        <NumberInput
-                          min={0.1}
-                          precision={1}
-                          step={0.1}
-                          onChange={(_, valueAsNumber) => setValue(`foodItems.${index}.quantity`, valueAsNumber)}
-                          value={item.quantity}
-                        >
-                          <NumberInputField
-                            {...register(`foodItems.${index}.quantity`, { valueAsNumber: true })}
-                            borderColor="brand.200"
-                            _focus={{ borderColor: 'brand.300', boxShadow: `0 0 0 1px ${theme.colors.brand['300']}` }}
-                          />
-                          <NumberInputStepper>
-                            <NumberIncrementStepper />
-                            <NumberDecrementStepper />
-                          </NumberInputStepper>
-                        </NumberInput>
-                        <FormErrorMessage>{errors.foodItems?.[index]?.quantity?.message}</FormErrorMessage>
-                      </FormControl>
-                      <Text fontSize="sm" color="text.light">{item.unit}</Text>
+                      <NumberInput
+                        size="sm"
+                        min={0.1}
+                        max={100}
+                        step={0.1}
+                        value={item.quantity}
+                        onChange={(_, value) => setValue(`food_items.${index}.quantity`, value)}
+                      >
+                        <NumberInputField />
+                        <NumberInputStepper>
+                          <NumberIncrementStepper />
+                          <NumberDecrementStepper />
+                        </NumberInputStepper>
+                      </NumberInput>
+                      <Text>{item.unit}</Text>
                       <IconButton
                         aria-label="Remove food item"
-                        onClick={() => remove(index)}
+                        icon={<FaTrash />}
+                        size="sm"
                         colorScheme="red"
                         variant="ghost"
-                        size="sm"
-                      >
-                        <FaTrash />
-                      </IconButton>
+                        onClick={() => remove(index)}
+                      />
                     </HStack>
                   </HStack>
                 </Box>
               ))}
-              {errors.foodItems && (
-                <Text color="red.500" fontSize="sm">
-                  {errors.foodItems.message || 'Please add at least one food item.'}
-                </Text>
-              )}
             </VStack>
 
-            {/* Quick Add Section */}
-            <QuickAdd onQuickAdd={handleAddFoodItem} />
-
-            <Divider my={4} borderColor="brand.100" />
-
-            {/* Notes */}
             <FormControl id="notes" isInvalid={!!errors.notes}>
-              <FormLabel color="text.dark">Notes (Optional)</FormLabel>
+              <FormLabel color="text.dark">Notes</FormLabel>
               <Input
                 {...register('notes')}
-                placeholder="e.g., A light and healthy lunch."
+                placeholder="Add any notes about your meal..."
                 borderColor="brand.200"
                 _focus={{ borderColor: 'brand.300', boxShadow: `0 0 0 1px ${theme.colors.brand['300']}` }}
               />
-              <FormErrorMessage>{errors.notes && errors.notes.message}</FormErrorMessage>
+              <FormErrorMessage>{errors.notes?.message}</FormErrorMessage>
             </FormControl>
 
             <Button
               type="submit"
-              isLoading={isLogging}
               colorScheme="teal"
-              variant="solid"
+              size="lg"
+              isLoading={isLogging}
+              loadingText="Logging Meal..."
               width="full"
-              mt={6}
-              bg="accent.500"
-              color="white"
-              _hover={{ bg: 'accent.600' }}
-              isDisabled={fields.length === 0}
+              mt={4}
             >
               Log Meal
             </Button>
@@ -334,44 +329,24 @@ const MealLogger: React.FC = () => {
         </form>
       </Stack>
 
-      {/* Food Search Modal */}
       <Modal isOpen={isFoodSearchOpen} onClose={onFoodSearchClose} size="xl">
         <ModalOverlay />
-        <ModalContent bg="whiteAlpha.900" borderRadius="lg" p={4}>
-          <ModalHeader color="text.dark">Search & Add Food</ModalHeader>
+        <ModalContent>
+          <ModalHeader>Search Food</ModalHeader>
           <ModalCloseButton />
-          <ModalBody>
-            <FoodSearch onFoodSelect={(food) => {
-              handleAddFoodItem({
-                ...food,
-                quantity: 1,
-                unit: food.unit || 'serving'
-              });
-            }} />
+          <ModalBody pb={6}>
+            <FoodSearch onFoodSelect={handleAddFoodItem} />
           </ModalBody>
         </ModalContent>
       </Modal>
 
-      {/* Barcode Scanner Modal */}
-      <Modal isOpen={isBarcodeScannerOpen} onClose={onBarcodeScannerClose} size="lg">
+      <Modal isOpen={isBarcodeScannerOpen} onClose={onBarcodeScannerClose} size="xl">
         <ModalOverlay />
-        <ModalContent bg="whiteAlpha.900" borderRadius="lg" p={4}>
-          <ModalHeader color="text.dark">Scan Barcode</ModalHeader>
+        <ModalContent>
+          <ModalHeader>Scan Barcode</ModalHeader>
           <ModalCloseButton />
-          <ModalBody>
-            <BarcodeScanner onScan={(barcode) => {
-              const scannedFood: FoodItemData = {
-                name: `Scanned Item: ${barcode}`,
-                calories: 0,
-                protein: 0,
-                carbs: 0,
-                fat: 0,
-                quantity: 1,
-                unit: 'piece',
-                barcode: barcode,
-              };
-              handleAddFoodItem(scannedFood);
-            }} onClose={onBarcodeScannerClose} />
+          <ModalBody pb={6}>
+            <BarcodeScanner onBarcodeScanned={handleAddFoodItem} />
           </ModalBody>
         </ModalContent>
       </Modal>

@@ -42,8 +42,8 @@ export const useRecommendations = () => {
       const [systemResponse, aiResponse] = await Promise.all([
         requestRecommendations(user.id),
         requestAIRecommendations({
-          userId: user.id,
-          timestamp: new Date().toISOString(),
+          user_id: user.id,
+          created_at: new Date().toISOString(),
           context: {
             platform: 'web',
             source: 'recommendations'

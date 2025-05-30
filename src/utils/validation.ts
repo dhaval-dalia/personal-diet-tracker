@@ -150,19 +150,19 @@ export const foodItemSchema = z.object({
   protein: z.number().min(0, 'Protein cannot be negative'),
   carbs: z.number().min(0, 'Carbs cannot be negative'),
   fat: z.number().min(0, 'Fat cannot be negative'),
-  quantity: z.number().min(0.1, 'Quantity must be greater than 0'), // Quantity of this specific food item
+  quantity: z.number().min(0.1, 'Quantity must be greater than 0'),
   unit: z.string().min(1, 'Unit is required (e.g., g, ml, piece)'),
-  barcode: z.string().optional(), // Optional for manual entry
+  barcode: z.string().optional(),
 });
 
 export const mealLogSchema = z.object({
-  userId: z.string().min(1, 'User ID is required'),
-  timestamp: z.string().min(1, 'Timestamp is required'),
-  mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack', 'other'], { message: 'Please select a meal type' }),
-  mealDate: z.string().min(1, 'Meal date is required'),
-  mealTime: z.string().min(1, 'Meal time is required'),
-  foodItems: z.array(foodItemSchema).min(1, 'At least one food item is required for a meal'),
+  user_id: z.string().min(1, 'User ID is required'),
+  meal_type: z.enum(['breakfast', 'lunch', 'dinner', 'snack', 'other'], { message: 'Please select a meal type' }),
+  meal_date: z.string().min(1, 'Meal date is required'),
+  meal_time: z.string().min(1, 'Meal time is required'),
+  food_items: z.array(foodItemSchema).min(1, 'At least one food item is required for a meal'),
   notes: z.string().optional(),
+  created_at: z.string().min(1, 'Created at timestamp is required'),
 });
 
 // --- User Profile & Goal Setting Schemas ---

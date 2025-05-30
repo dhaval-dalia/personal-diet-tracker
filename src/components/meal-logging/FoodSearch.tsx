@@ -23,11 +23,13 @@ import { CloseIcon, SearchIcon } from '@chakra-ui/icons';
 export interface SearchedFoodItem {
   id: string;
   name: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  unit?: string; // e.g., "per 100g", "per piece"
+  calories_per_serving: number;
+  protein_per_serving: number;
+  carbs_per_serving: number;
+  fat_per_serving: number;
+  serving_size: number;
+  serving_unit: string;
+  barcode?: string;
 }
 
 interface FoodSearchProps {
@@ -51,7 +53,7 @@ const FoodSearch: React.FC<FoodSearchProps> = ({ onFoodSelect }) => {
     try {
       const { data, error } = await supabase
         .from('food_items')
-        .select('id, name, calories, protein, carbs, fat, unit')
+        .select('id, name, calories_per_serving, protein_per_serving, carbs_per_serving, fat_per_serving, serving_size, serving_unit, barcode')
         .ilike('name', `%${searchTerm}%`)
         .limit(10);
 
@@ -167,8 +169,8 @@ const FoodSearch: React.FC<FoodSearchProps> = ({ onFoodSelect }) => {
               <Box>
                 <Text fontWeight="bold" color="text.dark">{food.name}</Text>
                 <Text fontSize="sm" color="text.light">
-                  {food.calories} kcal | {food.protein}g P | {food.carbs}g C | {food.fat}g F
-                  {food.unit && ` (${food.unit})`}
+                  {food.calories_per_serving} kcal | {food.protein_per_serving}g P | {food.carbs_per_serving}g C | {food.fat_per_serving}g F
+                  {food.serving_unit && ` (per ${food.serving_size} ${food.serving_unit})`}
                 </Text>
               </Box>
               <Button size="sm" variant="outline" colorScheme="teal" onClick={() => onFoodSelect(food)}>

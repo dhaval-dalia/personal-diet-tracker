@@ -15,28 +15,28 @@ import {
   FormErrorMessage,
   Alert,
   AlertIcon,
-  Select,
-  HStack,
 } from '@chakra-ui/react';
 import { useAuth } from '../../hooks/useAuth';
 import { useErrorHandling } from '../../hooks/useErrorHandling';
-import { countryCodes, getPhoneNumberError } from '../../utils/phoneValidation';
 
 const signupSchema = z.object({
-  firstName: z.string().min(2, 'First name must be at least 2 characters'),
-  lastName: z.string().min(2, 'Last name must be at least 2 characters'),
-  email: z.string().email('Please enter a valid email address'),
-  phone: z.string()
-    .min(10, 'Phone number must be at least 10 digits')
-    .regex(/^\+?[\d\s\-\(\)]+$/, 'Please enter a valid phone number'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  confirmPassword: z.string().min(6, 'Please confirm your password'),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ['confirmPassword'],
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  user_metadata: z.object({
+    first_name: z.string().min(2, 'First name must be at least 2 characters'),
+    last_name: z.string().min(2, 'Last name must be at least 2 characters'),
+    phone_number: z.string()
+      .min(10, 'Phone number must be at least 10 digits')
+      .max(15, 'Phone number must not exceed 15 digits')
+      .regex(/^\d+$/, 'Phone number must contain only digits'),
+  }),
+  context: z.object({
+    platform: z.string().default('web'),
+    source: z.string().default('signup-form')
+  })
 });
 
-type SignUpFormInputs = z.infer<typeof signupSchema>;
+type SignUpFormData = z.infer<typeof signupSchema>;
 
 interface SignUpFormProps {
   onSuccess?: () => void;
@@ -44,123 +44,56 @@ interface SignUpFormProps {
 }
 
 const SignUpForm: React.FC<SignUpFormProps> = ({ onSuccess, onSwitchToLogin }) => {
-  const [selectedCountry, setSelectedCountry] = useState('US');
+  const { signUp } = useAuth();
+  const { handleError, showToast } = useErrorHandling();
+  const [isLoading, setIsLoading] = useState(false);
+
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors },
     reset,
-    setError,
-    clearErrors,
-    watch,
-  } = useForm<SignUpFormInputs>({
+  } = useForm<SignUpFormData>({
     resolver: zodResolver(signupSchema),
-  });
-
-  const { signUp } = useAuth();
-  const { handleError, showToast } = useErrorHandling();
-  const phoneValue = watch('phone');
-
-  const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedCountry(e.target.value);
-    if (phoneValue) {
-      const error = getPhoneNumberError(phoneValue, e.target.value);
-      if (error) {
-        setError('phone', { type: 'manual', message: error });
-      } else {
-        clearErrors('phone');
+    defaultValues: {
+      context: {
+        platform: 'web',
+        source: 'signup-form'
       }
     }
-  };
+  });
 
-  const onSubmit = async (data: SignUpFormInputs) => {
+  const onSubmit = async (data: SignUpFormData) => {
+    setIsLoading(true);
     try {
-      clearErrors();
-      
-      console.log('Starting signup process for:', data.email);
-
-      const { user, error } = await signUp({
+      const signupData = {
         email: data.email,
-        password: data.password
+        password: data.password,
+        user_metadata: {
+          first_name: data.user_metadata.first_name,
+          last_name: data.user_metadata.last_name,
+          phone_number: data.user_metadata.phone_number
+        },
+        context: {
+          platform: data.context.platform,
+          source: data.context.source
+        }
+      };
+
+      await signUp(signupData);
+      showToast({
+        title: 'Account Created Successfully!',
+        description: 'Please check your email to verify your account.',
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
       });
-
-      if (error) {
-        console.error('Supabase signup error:', error);
-        
-        const errorMessage = error.message || '';
-        
-        if (errorMessage.includes('User already registered') || 
-            errorMessage.includes('already registered') ||
-            errorMessage.includes('already been registered') ||
-            errorMessage.includes('email already exists')) {
-          setError('email', {
-            type: 'server',
-            message: 'This email is already registered. Please sign in instead.'
-          });
-          return;
-        }
-
-        if (errorMessage.includes('Password should be at least') || 
-            (errorMessage.includes('password') && errorMessage.includes('weak'))) {
-          setError('password', {
-            type: 'server',
-            message: 'Password is too weak. Please choose a stronger password.'
-          });
-          return;
-        }
-
-        if (errorMessage.includes('Invalid email')) {
-          setError('email', {
-            type: 'server',
-            message: 'Please enter a valid email address.'
-          });
-          return;
-        }
-
-        if (errorMessage.includes('Invalid phone')) {
-          setError('phone', {
-            type: 'server',
-            message: 'Please enter a valid phone number.'
-          });
-          return;
-        }
-
-        if (errorMessage.includes('Email rate limit exceeded')) {
-          setError('email', {
-            type: 'server',
-            message: 'Too many signup attempts. Please try again later.'
-          });
-          return;
-        }
-
-        setError('email', {
-          type: 'server',
-          message: errorMessage || 'Signup failed. Please try again.'
-        });
-        return;
-      }
-
-      if (user) {
-        console.log('Signup successful:', user.id);
-
-        showToast({
-          title: 'Account Created Successfully!',
-          description: user.email_confirmed_at 
-            ? 'You can now sign in to your account.'
-            : 'Please check your email and click the verification link to activate your account.',
-          status: 'success',
-          duration: 8000,
-        });
-
-        reset();
-        onSuccess?.();
-      }
+      reset();
+      onSuccess?.();
     } catch (error) {
-      console.error('Unexpected signup error:', error);
-      setError('email', {
-        type: 'server',
-        message: 'An unexpected error occurred. Please try again.'
-      });
+      handleError(error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -186,50 +119,49 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSuccess, onSwitchToLogin }) =
 
         <Box as="form" onSubmit={handleSubmit(onSubmit)} width="100%">
           <VStack spacing={4}>
-            {/* Name Fields Row */}
-            <Box display="flex" gap={4} width="100%">
-              <FormControl isInvalid={!!errors.firstName} flex={1}>
+            <div className="grid grid-cols-2 gap-4">
+              <FormControl isInvalid={!!errors.user_metadata?.first_name} flex={1}>
                 <FormLabel color="text.dark">First Name</FormLabel>
                 <Input
                   type="text"
-                  {...register('firstName')}
+                  {...register('user_metadata.first_name')}
                   placeholder="Enter your first name"
-                  borderColor={errors.firstName ? 'red.500' : 'brand.200'}
+                  borderColor={errors.user_metadata?.first_name ? 'red.500' : 'brand.200'}
                   _focus={{ 
-                    borderColor: errors.firstName ? 'red.500' : 'brand.300', 
-                    boxShadow: errors.firstName 
+                    borderColor: errors.user_metadata?.first_name ? 'red.500' : 'brand.300', 
+                    boxShadow: errors.user_metadata?.first_name 
                       ? '0 0 0 1px var(--chakra-colors-red-500)' 
                       : '0 0 0 1px var(--chakra-colors-brand-300)' 
                   }}
                 />
-                {errors.firstName && (
+                {errors.user_metadata?.first_name && (
                   <FormErrorMessage mt={1}>
-                    <Text fontSize="sm" color="red.500">{errors.firstName.message}</Text>
+                    <Text fontSize="sm" color="red.500">{errors.user_metadata.first_name.message}</Text>
                   </FormErrorMessage>
                 )}
               </FormControl>
 
-              <FormControl isInvalid={!!errors.lastName} flex={1}>
+              <FormControl isInvalid={!!errors.user_metadata?.last_name} flex={1}>
                 <FormLabel color="text.dark">Last Name</FormLabel>
                 <Input
                   type="text"
-                  {...register('lastName')}
+                  {...register('user_metadata.last_name')}
                   placeholder="Enter your last name"
-                  borderColor={errors.lastName ? 'red.500' : 'brand.200'}
+                  borderColor={errors.user_metadata?.last_name ? 'red.500' : 'brand.200'}
                   _focus={{ 
-                    borderColor: errors.lastName ? 'red.500' : 'brand.300', 
-                    boxShadow: errors.lastName 
+                    borderColor: errors.user_metadata?.last_name ? 'red.500' : 'brand.300', 
+                    boxShadow: errors.user_metadata?.last_name 
                       ? '0 0 0 1px var(--chakra-colors-red-500)' 
                       : '0 0 0 1px var(--chakra-colors-brand-300)' 
                   }}
                 />
-                {errors.lastName && (
+                {errors.user_metadata?.last_name && (
                   <FormErrorMessage mt={1}>
-                    <Text fontSize="sm" color="red.500">{errors.lastName.message}</Text>
+                    <Text fontSize="sm" color="red.500">{errors.user_metadata.last_name.message}</Text>
                   </FormErrorMessage>
                 )}
               </FormControl>
-            </Box>
+            </div>
 
             <FormControl isInvalid={!!errors.email}>
               <FormLabel color="text.dark">Email address</FormLabel>
@@ -255,25 +187,25 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSuccess, onSwitchToLogin }) =
               )}
             </FormControl>
 
-            <FormControl isInvalid={!!errors.phone}>
+            <FormControl isInvalid={!!errors.user_metadata?.phone_number}>
               <FormLabel color="text.dark">Phone Number</FormLabel>
               <Input
                 type="tel"
-                {...register('phone')}
-                placeholder="Enter your phone number (e.g., +1234567890)"
-                borderColor={errors.phone ? 'red.500' : 'brand.200'}
+                {...register('user_metadata.phone_number')}
+                placeholder="Enter your phone number (e.g., 1234567890)"
+                borderColor={errors.user_metadata?.phone_number ? 'red.500' : 'brand.200'}
                 _focus={{ 
-                  borderColor: errors.phone ? 'red.500' : 'brand.300', 
-                  boxShadow: errors.phone 
+                  borderColor: errors.user_metadata?.phone_number ? 'red.500' : 'brand.300', 
+                  boxShadow: errors.user_metadata?.phone_number 
                     ? '0 0 0 1px var(--chakra-colors-red-500)' 
                     : '0 0 0 1px var(--chakra-colors-brand-300)' 
                 }}
               />
-              {errors.phone && (
+              {errors.user_metadata?.phone_number && (
                 <FormErrorMessage mt={2}>
                   <Alert status="error" size="sm" borderRadius="md">
                     <AlertIcon boxSize="16px" />
-                    <Text fontSize="sm">{errors.phone.message}</Text>
+                    <Text fontSize="sm">{errors.user_metadata.phone_number.message}</Text>
                   </Alert>
                 </FormErrorMessage>
               )}
@@ -284,7 +216,7 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSuccess, onSwitchToLogin }) =
               <Input
                 type="password"
                 {...register('password')}
-                placeholder="Enter your password (min 6 characters)"
+                placeholder="Enter your password (min 8 characters)"
                 borderColor={errors.password ? 'red.500' : 'brand.200'}
                 _focus={{ 
                   borderColor: errors.password ? 'red.500' : 'brand.300', 
@@ -303,33 +235,9 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSuccess, onSwitchToLogin }) =
               )}
             </FormControl>
 
-            <FormControl isInvalid={!!errors.confirmPassword}>
-              <FormLabel color="text.dark">Confirm Password</FormLabel>
-              <Input
-                type="password"
-                {...register('confirmPassword')}
-                placeholder="Confirm your password"
-                borderColor={errors.confirmPassword ? 'red.500' : 'brand.200'}
-                _focus={{ 
-                  borderColor: errors.confirmPassword ? 'red.500' : 'brand.300', 
-                  boxShadow: errors.confirmPassword 
-                    ? '0 0 0 1px var(--chakra-colors-red-500)' 
-                    : '0 0 0 1px var(--chakra-colors-brand-300)' 
-                }}
-              />
-              {errors.confirmPassword && (
-                <FormErrorMessage mt={2}>
-                  <Alert status="error" size="sm" borderRadius="md">
-                    <AlertIcon boxSize="16px" />
-                    <Text fontSize="sm">{errors.confirmPassword.message}</Text>
-                  </Alert>
-                </FormErrorMessage>
-              )}
-            </FormControl>
-
             <Button
               type="submit"
-              isLoading={isSubmitting}
+              isLoading={isLoading}
               loadingText="Creating Account..."
               colorScheme="teal"
               variant="solid"
@@ -340,7 +248,7 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSuccess, onSwitchToLogin }) =
               _hover={{ bg: 'accent.200' }}
               _disabled={{ opacity: 0.6, cursor: 'not-allowed' }}
             >
-              Sign Up
+              {isLoading ? 'Signing up...' : 'Sign Up'}
             </Button>
           </VStack>
         </Box>

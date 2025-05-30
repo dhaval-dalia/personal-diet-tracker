@@ -1,7 +1,11 @@
 // src/components/dashboard/NutritionChart.tsx
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Box, Heading, Text, useTheme } from '@chakra-ui/react';
+import { Box, Heading, Text, useTheme, Spinner, Center, Button } from '@chakra-ui/react';
+import { format, subDays } from 'date-fns';
+import { supabase } from '../../services/supabase';
+import { useAuth } from '../../hooks/useAuth';
+import { FaUtensils } from 'react-icons/fa';
 
 interface DailyNutritionData {
   date: string;
@@ -13,40 +17,132 @@ interface DailyNutritionData {
 }
 
 interface NutritionChartProps {
-  data?: DailyNutritionData[] | null;
   title?: string;
+  onNavigate: (view: string) => void;
 }
 
-// Dummy data for when no real data is available
-const DUMMY_DATA: DailyNutritionData[] = [
-  { date: 'Mon 20', calories: 1800, protein: 120, carbs: 200, fat: 60, fiber: 25 },
-  { date: 'Tue 21', calories: 2000, protein: 140, carbs: 220, fat: 70, fiber: 28 },
-  { date: 'Wed 22', calories: 1900, protein: 130, carbs: 210, fat: 65, fiber: 26 },
-  { date: 'Thu 23', calories: 2100, protein: 150, carbs: 230, fat: 75, fiber: 30 },
-  { date: 'Fri 24', calories: 1850, protein: 125, carbs: 205, fat: 62, fiber: 24 },
-  { date: 'Sat 25', calories: 2200, protein: 160, carbs: 240, fat: 80, fiber: 32 },
-  { date: 'Sun 26', calories: 1950, protein: 135, carbs: 215, fat: 68, fiber: 27 },
-];
-
-// Target values for each nutrient
-const TARGETS = {
-  calories: 2000,
-  protein: 150, // grams
-  carbs: 250,   // grams
-  fat: 65,      // grams
-  fiber: 30     // grams
-};
+interface UserGoals {
+  target_calories?: number;
+  target_protein_ratio?: number;
+  target_carbs_ratio?: number;
+  target_fat_ratio?: number;
+}
 
 const NutritionChart: React.FC<NutritionChartProps> = ({ 
-  data, 
-  title = "Nutritional Intake Over Time" 
+  title = "Nutritional Intake Over Time",
+  onNavigate
 }) => {
   const theme = useTheme();
-  
-  const chartData = data && data.length > 0 ? data : DUMMY_DATA;
-  const isUsingDummyData = !data || data.length === 0;
+  const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [chartData, setChartData] = useState<DailyNutritionData[]>([]);
+  const [userGoals, setUserGoals] = useState<UserGoals | null>(null);
 
-  // Calculate percentages for each nutrient
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user?.id) return;
+
+      try {
+        // Fetch user goals
+        const { data: goalsData, error: goalsError } = await supabase
+          .from('user_goals')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (goalsError) throw goalsError;
+        setUserGoals(goalsData);
+
+        // Fetch last 7 days of meal data
+        const sevenDaysAgo = subDays(new Date(), 7).toISOString();
+        const { data: mealsData, error: mealsError } = await supabase
+          .from('meal_logs')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('created_at', sevenDaysAgo)
+          .order('created_at', { ascending: true });
+
+        if (mealsError) throw mealsError;
+
+        // Process meal data
+        const dailyData = new Map<string, DailyNutritionData>();
+        
+        mealsData.forEach(meal => {
+          const date = format(new Date(meal.created_at), 'EEE dd');
+          const existing = dailyData.get(date) || {
+            date,
+            calories: 0,
+            protein: 0,
+            carbs: 0,
+            fat: 0,
+            fiber: 0
+          };
+
+          // Add meal macros to daily totals
+          existing.calories += meal.calories || 0;
+          existing.protein += meal.protein || 0;
+          existing.carbs += meal.carbs || 0;
+          existing.fat += meal.fat || 0;
+          existing.fiber += meal.fiber || 0;
+
+          dailyData.set(date, existing);
+        });
+
+        // Convert Map to array and fill in missing days
+        const last7Days = Array.from({ length: 7 }, (_, i) => {
+          const date = format(subDays(new Date(), i), 'EEE dd');
+          return dailyData.get(date) || {
+            date,
+            calories: 0,
+            protein: 0,
+            carbs: 0,
+            fat: 0,
+            fiber: 0
+          };
+        }).reverse();
+
+        setChartData(last7Days);
+      } catch (error) {
+        console.error('Error fetching nutrition data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+
+    // Subscribe to real-time updates
+    const subscription = supabase
+      .channel('meal_logs_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'meal_logs',
+          filter: `user_id=eq.${user?.id}`
+        },
+        () => {
+          fetchData(); // Refetch data when changes occur
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user?.id]);
+
+  // Calculate percentages based on user goals or default targets
+  const TARGETS = {
+    calories: userGoals?.target_calories || 2000,
+    protein: userGoals?.target_protein_ratio || 150,
+    carbs: userGoals?.target_carbs_ratio || 250,
+    fat: userGoals?.target_fat_ratio || 65,
+    fiber: 30 // Default fiber target
+  };
+
+  // Process data to show percentages of targets
   const processedData = chartData.map(item => ({
     date: item.date,
     calories: (item.calories / TARGETS.calories) * 100,
@@ -88,6 +184,25 @@ const NutritionChart: React.FC<NutritionChartProps> = ({
     }
     return null;
   };
+
+  if (isLoading) {
+    return (
+      <Box
+        p={6}
+        borderRadius="lg"
+        bg="whiteAlpha.700"
+        boxShadow="lg"
+        borderColor="brand.200"
+        borderWidth={1}
+        width="100%"
+        height="400px"
+      >
+        <Center h="100%">
+          <Spinner size="xl" color="accent.500" />
+        </Center>
+      </Box>
+    );
+  }
 
   return (
     <Box
@@ -141,10 +256,24 @@ const NutritionChart: React.FC<NutritionChartProps> = ({
         </BarChart>
       </ResponsiveContainer>
       
-      {isUsingDummyData && (
-        <Text fontSize="sm" color="gray.400" textAlign="center" fontStyle="italic" mt={4}>
-          Showing sample data. Log your meals to see your real nutritional breakdown over time.
-        </Text>
+      {chartData.every(day => day.calories === 0) && (
+        <Box textAlign="center" mt={4}>
+          <Text fontSize="md" color="gray.600" mb={2}>
+            Start tracking your nutrition journey!
+          </Text>
+          <Text fontSize="sm" color="gray.500" fontStyle="italic">
+            Log your first meal to see your nutritional insights and track your progress over time.
+          </Text>
+          <Button
+            mt={4}
+            colorScheme="teal"
+            size="sm"
+            onClick={() => onNavigate('log-meal')}
+            leftIcon={<FaUtensils />}
+          >
+            Log Your First Meal
+          </Button>
+        </Box>
       )}
     </Box>
   );
