@@ -9,6 +9,7 @@ import { useAuth } from './useAuth';
 import { logMeal, MealLogData } from '../services/n8nWebhooks';
 import { mealLogSchema, foodItemSchema } from '../utils/validation';
 import { z } from 'zod';
+import { supabase } from '../services/supabase';
 
 // Define types for meal and food items based on Zod schemas
 export type FoodItemData = z.infer<typeof foodItemSchema>;
@@ -18,6 +19,24 @@ export const useMealLogging = () => {
   const [logSuccess, setLogSuccess] = useState(false);
   const { handleError } = useErrorHandling();
   const { user } = useAuth();
+
+  const fetchMealLogs = useCallback(async () => {
+    if (!user?.id) return null;
+    
+    const { data: mealLogs, error: mealLogsError } = await supabase
+      .from('meal_logs')
+      .select('*')
+      .eq('user_id', user.id)
+      .gte('created_at', new Date().toISOString())
+      .order('created_at', { ascending: true });
+
+    if (mealLogsError) {
+      console.error('Error fetching meal logs:', mealLogsError);
+      return null;
+    }
+
+    return mealLogs;
+  }, [user?.id]);
 
   /**
    * Submits meal data to the n8n meal logging workflow.
@@ -53,5 +72,6 @@ export const useMealLogging = () => {
     isLogging,
     logSuccess,
     submitMealLog,
+    fetchMealLogs
   };
 };

@@ -21,10 +21,7 @@ import RecommendationCard from './RecommendationCard';
 import ProfileCompletionCheck from './ProfileCompletionCheck';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../services/supabase';
-
-interface DashboardProps {
-  onNavigate: (view: string) => void;
-}
+import { useRouter } from 'next/router';
 
 interface ChatMessage {
   text: string;
@@ -161,6 +158,7 @@ const ChatBot: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       boxShadow="xl"
       borderWidth="1px"
       borderColor="gray.200"
+      zIndex={1000}
     >
       <Flex
         p={4}
@@ -243,16 +241,21 @@ const ChatBot: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   );
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
+const Dashboard: React.FC = () => {
   const bgColor = useColorModeValue('white', 'gray.800');
   const textColor = useColorModeValue('gray.800', 'white');
   const { isOpen, onToggle } = useDisclosure();
+  const router = useRouter();
+
+  const handleNavigate = (view: string) => {
+    router.push(`/${view}`);
+  };
 
   return (
     <VStack spacing={8} align="stretch" w="full" maxW="1200px" mx="auto" p={4}>
       {isOpen && <ChatBot onClose={onToggle} />}
 
-      <ProfileCompletionCheck onNavigate={onNavigate} />
+      <ProfileCompletionCheck onNavigate={handleNavigate} />
       
       <Box
         p={6}
@@ -271,7 +274,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </Text>
           <Flex gap={4}>
             <Button
-              onClick={() => onNavigate('log-meal')}
+              onClick={() => handleNavigate('log-meal')}
               colorScheme="teal"
               variant="solid"
               bg="accent.500"
@@ -295,7 +298,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       </Box>
 
       <DailyOverview />
-      <NutritionChart onNavigate={onNavigate} />
+      <NutritionChart onNavigate={handleNavigate} />
       <ProgressTracker />
       <RecommendationCard />
     </VStack>

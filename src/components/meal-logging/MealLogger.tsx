@@ -37,6 +37,7 @@ import {
   ModalCloseButton,
   Select,
   useTheme,
+  useToast,
 } from '@chakra-ui/react';
 import { FaBarcode, FaSearch, FaTrash } from 'react-icons/fa';
 import FoodSearch, { SearchedFoodItem } from './FoodSearch';
@@ -69,6 +70,7 @@ const MealLogger: React.FC = () => {
   const { handleError } = useErrorHandling();
   const { user } = useAuth();
   const theme = useTheme();
+  const toast = useToast();
 
   const { isOpen: isFoodSearchOpen, onOpen: onFoodSearchOpen, onClose: onFoodSearchClose } = useDisclosure();
   const { isOpen: isBarcodeScannerOpen, onOpen: onBarcodeScannerOpen, onClose: onBarcodeScannerClose } = useDisclosure();
@@ -77,7 +79,7 @@ const MealLogger: React.FC = () => {
     register,
     handleSubmit,
     control,
-    formState: { errors },
+    formState: { errors, isSubmitting },
     reset,
     setValue,
     getValues,
@@ -90,6 +92,7 @@ const MealLogger: React.FC = () => {
       food_items: [],
       notes: '',
     },
+    mode: 'onChange'
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -98,6 +101,7 @@ const MealLogger: React.FC = () => {
   });
 
   const handleAddFoodItem = useCallback((food: SearchedFoodItem | ScannedFoodItem) => {
+    console.log('Adding food item:', food);
     const foodWithQuantity: FoodItemData = {
       id: food.id,
       name: food.name,
@@ -118,9 +122,9 @@ const MealLogger: React.FC = () => {
     } else {
       append(foodWithQuantity);
     }
-    onFoodSearchClose();
-    onBarcodeScannerClose();
-  }, [append, fields, getValues, setValue, onFoodSearchClose, onBarcodeScannerClose]);
+    onFoodSearchOpen();
+    onBarcodeScannerOpen();
+  }, [append, fields, getValues, setValue, onFoodSearchOpen, onBarcodeScannerOpen]);
 
   const onSubmit = async (data: MealLogFormInputs) => {
     try {
@@ -128,20 +132,56 @@ const MealLogger: React.FC = () => {
         throw new Error('User must be logged in to log meals');
       }
 
+      // Validate food items
+      if (!data.food_items || data.food_items.length === 0) {
+        throw new Error('Please add at least one food item');
+      }
+
+      // Calculate total nutrition values
+      const totalNutrition = data.food_items.reduce((acc, item) => ({
+        calories: acc.calories + (item.calories * item.quantity),
+        protein: acc.protein + (item.protein * item.quantity),
+        carbs: acc.carbs + (item.carbs * item.quantity),
+        fat: acc.fat + (item.fat * item.quantity)
+      }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
       const mealData = {
         user_id: user.id,
         meal_type: data.meal_type,
         meal_date: data.meal_date,
         meal_time: data.meal_time,
-        food_items: data.food_items,
+        food_items: data.food_items.map(item => ({
+          name: item.name,
+          calories: item.calories * item.quantity,
+          protein: item.protein * item.quantity,
+          carbs: item.carbs * item.quantity,
+          fat: item.fat * item.quantity,
+          quantity: item.quantity,
+          unit: item.unit,
+          barcode: item.barcode
+        })),
         notes: data.notes,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        total_calories: totalNutrition.calories,
+        total_protein: totalNutrition.protein,
+        total_carbs: totalNutrition.carbs,
+        total_fat: totalNutrition.fat
       };
 
       console.log('Submitting meal data:', mealData);
       const response = await submitMealLog(mealData);
       console.log('Meal log response:', response);
 
+      // Show success message
+      toast({
+        title: 'Meal logged successfully',
+        description: `Added ${data.food_items.length} food items to your ${data.meal_type}`,
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+
+      // Reset form
       reset({
         meal_type: 'lunch',
         meal_date: format(new Date(), 'yyyy-MM-dd'),
@@ -152,6 +192,15 @@ const MealLogger: React.FC = () => {
     } catch (error) {
       console.error('Error submitting meal:', error);
       handleError(error);
+      
+      // Show error message
+      toast({
+        title: 'Error logging meal',
+        description: error instanceof Error ? error.message : 'Failed to log meal',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
     }
   };
 
@@ -318,10 +367,11 @@ const MealLogger: React.FC = () => {
               type="submit"
               colorScheme="teal"
               size="lg"
-              isLoading={isLogging}
+              isLoading={isSubmitting}
               loadingText="Logging Meal..."
               width="full"
               mt={4}
+              isDisabled={fields.length === 0 || isSubmitting}
             >
               Log Meal
             </Button>
