@@ -39,11 +39,11 @@ import {
   useTheme,
   useToast,
 } from '@chakra-ui/react';
-import { FaBarcode, FaSearch, FaTrash } from 'react-icons/fa';
+import { FaBarcode, FaSearch, FaTrash, FaPlus } from 'react-icons/fa';
 import FoodSearch, { SearchedFoodItem } from './FoodSearch';
 import BarcodeScanner, { ScannedFoodItem } from './BarcodeScanner';
-import QuickAdd from './QuickAdd';
-import { mealLogSchema, foodItemSchema } from '../../utils/validation';
+import QuickAdd, { QuickAddFoodInputs } from './QuickAdd';
+import { mealLogSchema } from '../../utils/validation';
 import { useMealLogging } from '../../hooks/useMealLogging';
 import { useErrorHandling } from '../../hooks/useErrorHandling';
 import { format } from 'date-fns';
@@ -74,6 +74,7 @@ const MealLogger: React.FC = () => {
 
   const { isOpen: isFoodSearchOpen, onOpen: onFoodSearchOpen, onClose: onFoodSearchClose } = useDisclosure();
   const { isOpen: isBarcodeScannerOpen, onOpen: onBarcodeScannerOpen, onClose: onBarcodeScannerClose } = useDisclosure();
+  const { isOpen: isQuickAddOpen, onOpen: onQuickAddOpen, onClose: onQuickAddClose } = useDisclosure();
 
   const {
     register,
@@ -100,16 +101,16 @@ const MealLogger: React.FC = () => {
     name: 'food_items',
   });
 
-  const handleAddFoodItem = useCallback((food: SearchedFoodItem | ScannedFoodItem) => {
+  const handleAddFoodItem = useCallback((food: SearchedFoodItem | ScannedFoodItem | QuickAddFoodInputs) => {
     console.log('Adding food item:', food);
     const foodWithQuantity: FoodItemData = {
-      id: food.id,
+      id: 'id' in food ? food.id : undefined,
       name: food.name,
       calories: food.calories_per_serving,
       protein: food.protein_per_serving,
       carbs: food.carbs_per_serving,
       fat: food.fat_per_serving,
-      quantity: 1,
+      quantity: 'serving_size' in food ? food.serving_size : 1,
       unit: food.serving_unit,
       barcode: food.barcode
     };
@@ -118,13 +119,16 @@ const MealLogger: React.FC = () => {
 
     if (existingIndex > -1) {
       const currentQuantity = getValues(`food_items.${existingIndex}.quantity`) || 0;
-      setValue(`food_items.${existingIndex}.quantity`, currentQuantity + 1);
+      setValue(`food_items.${existingIndex}.quantity`, currentQuantity + foodWithQuantity.quantity);
     } else {
       append(foodWithQuantity);
     }
-    onFoodSearchOpen();
-    onBarcodeScannerOpen();
-  }, [append, fields, getValues, setValue, onFoodSearchOpen, onBarcodeScannerOpen]);
+    
+    // Close all modals
+    onFoodSearchClose();
+    onBarcodeScannerClose();
+    onQuickAddClose();
+  }, [append, fields, getValues, setValue, onFoodSearchClose, onBarcodeScannerClose, onQuickAddClose]);
 
   const onSubmit = async (data: MealLogFormInputs) => {
     try {
@@ -152,20 +156,23 @@ const MealLogger: React.FC = () => {
         meal_time: data.meal_time,
         food_items: data.food_items.map(item => ({
           name: item.name,
-          calories: item.calories * item.quantity,
-          protein: item.protein * item.quantity,
-          carbs: item.carbs * item.quantity,
-          fat: item.fat * item.quantity,
+          calories: item.calories,
+          protein: item.protein,
+          carbs: item.carbs,
+          fat: item.fat,
           quantity: item.quantity,
           unit: item.unit,
-          barcode: item.barcode
+          barcode: item.barcode,
+          regional_variant: 'general',
+          preparation: 'prepared'
         })),
         notes: data.notes,
         created_at: new Date().toISOString(),
         total_calories: totalNutrition.calories,
         total_protein: totalNutrition.protein,
         total_carbs: totalNutrition.carbs,
-        total_fat: totalNutrition.fat
+        total_fat: totalNutrition.fat,
+        source: 'manual'
       };
 
       console.log('Submitting meal data:', mealData);
@@ -301,6 +308,18 @@ const MealLogger: React.FC = () => {
                 <Icon as={FaBarcode} mr={2} />
                 Scan Barcode
               </Button>
+              <Button
+                type="button"
+                onClick={onQuickAddOpen}
+                colorScheme="teal"
+                variant="outline"
+                bg="brand.100"
+                color="text.dark"
+                _hover={{ bg: 'brand.200' }}
+              >
+                <Icon as={FaPlus} mr={2} />
+                Quick Add
+              </Button>
             </HStack>
 
             <VStack gap={3} align="stretch">
@@ -397,6 +416,17 @@ const MealLogger: React.FC = () => {
           <ModalCloseButton />
           <ModalBody pb={6}>
             <BarcodeScanner onBarcodeScanned={handleAddFoodItem} />
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={isQuickAddOpen} onClose={onQuickAddClose} size="xl">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Quick Add Food</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <QuickAdd onQuickAdd={handleAddFoodItem} />
           </ModalBody>
         </ModalContent>
       </Modal>

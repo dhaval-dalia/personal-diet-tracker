@@ -17,10 +17,17 @@ import {
   Text,
   Link,
   useToast,
+  FormControl,
+  FormErrorMessage,
+  Divider,
+  HStack,
 } from '@chakra-ui/react';
 import { loginSchema } from '../../utils/validation';
 import { useAuth } from '../../hooks/useAuth';
 import { useErrorHandling } from '../../hooks/useErrorHandling';
+import { useRouter } from 'next/router';
+import { FaGoogle } from 'react-icons/fa';
+import { supabase } from '../../services/supabase';
 
 type LoginFormInputs = z.infer<typeof loginSchema>;
 
@@ -30,43 +37,60 @@ interface LoginFormProps {
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToSignUp }) => {
-  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const toast = useToast();
+  const router = useRouter();
   
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors },
     reset,
   } = useForm<LoginFormInputs>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: 'abc@xyz.com',
-      password: 'pass@123',
-    },
   });
 
   const { signIn } = useAuth();
   const { handleError, showToast } = useErrorHandling();
 
-  const onSubmit = async (data: LoginFormInputs) => {
+  const handleGoogleLogin = async () => {
+    setIsGoogleLoading(true);
     try {
-      // Check for test credentials
-      if (data.email === 'abc@xyz.com' && data.password === 'pass@123') {
-        showToast({
-          title: 'Login Successful!',
-          description: 'Welcome to your dashboard.',
-          status: 'success',
-        });
-        reset();
-        onSuccess?.();
-        return;
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+          scopes: 'email profile',
+        },
+      });
+
+      if (error) {
+        console.error('Google login error:', error);
+        throw error;
       }
 
+      if (data?.url) {
+        // Redirect to Google's OAuth page
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
+  const onSubmit = async (data: LoginFormInputs) => {
+    setIsLoading(true);
+    try {
       const { user, error } = await signIn(data);
 
       if (error) {
-        setLoginAttempts(prev => prev + 1);
         throw error;
       }
 
@@ -75,12 +99,17 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToSignUp }) =>
           title: 'Login Successful!',
           description: `Welcome back, ${user.email}.`,
           status: 'success',
+          duration: 3000,
+          isClosable: true,
         });
         reset();
         onSuccess?.();
+        router.push('/dashboard');
       }
     } catch (error) {
       handleError(error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -104,9 +133,29 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToSignUp }) =>
           Sign in to track your fitness journey.
         </Text>
 
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <Button
+          onClick={handleGoogleLogin}
+          isLoading={isGoogleLoading}
+          leftIcon={<FaGoogle />}
+          bg="#4285F4"
+          color="white"
+          _hover={{ bg: '#357ABD' }}
+          _active={{ bg: '#2D6DA3' }}
+          width="full"
+          size="lg"
+        >
+          Continue with Google
+        </Button>
+
+        <HStack width="100%" spacing={4}>
+          <Divider />
+          <Text color="text.light" fontSize="sm">OR</Text>
+          <Divider />
+        </HStack>
+
+        <form onSubmit={handleSubmit(onSubmit)} style={{ width: '100%' }}>
           <VStack gap={4}>
-            <Box>
+            <FormControl isInvalid={!!errors.email}>
               <Text as="label" color="text.dark" mb={2} display="block">
                 Email address
               </Text>
@@ -117,19 +166,12 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToSignUp }) =>
                 borderColor={errors.email ? 'red.500' : 'brand.200'}
                 _focus={{ borderColor: 'brand.300', boxShadow: '0 0 0 1px var(--chakra-colors-brand-300)' }}
               />
-              {errors.email && (
-                <Text color="red.500" fontSize="sm" mt={1}>
-                  {errors.email.message}
-                </Text>
-              )}
-              {loginAttempts > 0 && (
-                <Text color="red.500" fontSize="sm" mt={1}>
-                  Username or password needs to be checked
-                </Text>
-              )}
-            </Box>
+              <FormErrorMessage>
+                {errors.email && errors.email.message}
+              </FormErrorMessage>
+            </FormControl>
 
-            <Box>
+            <FormControl isInvalid={!!errors.password}>
               <Text as="label" color="text.dark" mb={2} display="block">
                 Password
               </Text>
@@ -140,29 +182,14 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onSwitchToSignUp }) =>
                 borderColor={errors.password ? 'red.500' : 'brand.200'}
                 _focus={{ borderColor: 'brand.300', boxShadow: '0 0 0 1px var(--chakra-colors-brand-300)' }}
               />
-              {errors.password && (
-                <Text color="red.500" fontSize="sm" mt={1}>
-                  {errors.password.message}
-                </Text>
-              )}
-              {loginAttempts >= 3 && (
-                <Text fontSize="sm" mt={1}>
-                  <Link color="accent.500" onClick={() => toast({
-                    title: "Password Reset",
-                    description: "Under development",
-                    status: "info",
-                    duration: 3000,
-                    isClosable: true,
-                  })}>
-                    Can't remember? Change it here
-                  </Link>
-                </Text>
-              )}
-            </Box>
+              <FormErrorMessage>
+                {errors.password && errors.password.message}
+              </FormErrorMessage>
+            </FormControl>
 
             <Button
               type="submit"
-              isLoading={isSubmitting}
+              isLoading={isLoading}
               colorScheme="teal"
               variant="solid"
               width="full"

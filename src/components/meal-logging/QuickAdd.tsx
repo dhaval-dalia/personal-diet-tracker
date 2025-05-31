@@ -29,9 +29,10 @@ const quickAddFoodSchema = z.object({
   barcode: z.string().optional(),
 });
 
-type QuickAddFoodInputs = z.infer<typeof quickAddFoodSchema>;
+// Export the type for use in other files
+export type QuickAddFoodInputs = z.infer<typeof quickAddFoodSchema>;
 
-interface QuickAddProps {
+export interface QuickAddProps {
   onQuickAdd: (food: QuickAddFoodInputs) => void;
 }
 
