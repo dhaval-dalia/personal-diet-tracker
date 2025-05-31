@@ -159,6 +159,10 @@ const AppCon: React.FC = () => {
     setCurrentView('dashboard');
   };
 
+  const handleNavigate = (view: string) => {
+    setCurrentView(view as AppView);
+  };
+
   const renderContent = () => {
     if (isLoading || isLoadingOnboardingStatus) {
       return <LoadingSpinner message="Initializing application..." />;
@@ -203,17 +207,11 @@ const AppCon: React.FC = () => {
               </Box>
             )}
 
-            <DailyOverview 
-              data={{
-                calories: 0,
-                protein: 0,
-                carbs: 0,
-                fat: 0
-              }}
-              goals={userGoals}
+            <DailyOverview
+              onNavigate={handleNavigate}
             />
             
-            <NutritionChart data={[]} />
+            <NutritionChart onNavigate={handleNavigate} />
             <ProgressTracker />
 
             <Box

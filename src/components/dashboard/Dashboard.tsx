@@ -297,7 +297,7 @@ const Dashboard: React.FC = () => {
         </VStack>
       </Box>
 
-      <DailyOverview />
+      <DailyOverview onNavigate={handleNavigate} />
       <NutritionChart onNavigate={handleNavigate} />
       <ProgressTracker />
       <RecommendationCard />

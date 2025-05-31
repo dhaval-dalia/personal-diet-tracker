@@ -12,6 +12,8 @@ import {
   useToast,
   HStack,
   Textarea,
+  Button,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import { format } from 'date-fns';
 import { z } from 'zod';
@@ -20,6 +22,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { FiSend, FiX } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { processChatMessage as processN8nMessage } from '../../services/n8nWebhooks';
+import { FaUtensils } from 'react-icons/fa';
 
 interface DailyData {
   calories?: number;
@@ -39,6 +42,7 @@ interface UserGoals {
 interface DailyOverviewProps {
   data?: DailyData | null;
   goals?: UserGoals | null;
+  onNavigate: (view: string) => void;
 }
 
 interface ChatMessageData {
@@ -92,7 +96,7 @@ const WavingBot = () => (
   </motion.div>
 );
 
-const DailyOverview: React.FC<DailyOverviewProps> = ({ data, goals: initialGoals }) => {
+const DailyOverview: React.FC<DailyOverviewProps> = ({ data, goals: initialGoals, onNavigate }) => {
   const { user } = useAuth();
   const [chatMessages, setChatMessages] = useState<ChatMessageData[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -101,6 +105,8 @@ const DailyOverview: React.FC<DailyOverviewProps> = ({ data, goals: initialGoals
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [goals, setGoals] = useState<UserGoals | null>(initialGoals || null);
   const toast = useToast();
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const textColor = useColorModeValue('gray.800', 'white');
 
   useEffect(() => {
     const fetchLatestGoals = async () => {
@@ -396,17 +402,34 @@ const DailyOverview: React.FC<DailyOverviewProps> = ({ data, goals: initialGoals
         borderWidth={1}
         borderRadius="lg"
         boxShadow="lg"
-        bg="whiteAlpha.700"
+        bg={bgColor}
         borderColor="brand.200"
         mx="auto"
         my={8}
       >
         <VStack gap={6} align="stretch">
-          <Heading as="h2" size="xl" textAlign="center" color="text.dark">
+          <Heading as="h2" size="xl" textAlign="center" color={textColor}>
             Daily Overview - {format(new Date(), 'EEEE, MMM d, yyyy')}
           </Heading>
 
           <Divider borderColor="brand.100" />
+
+          <HStack justify="space-between" align="center">
+            <VStack align="start" spacing={1}>
+              <Text color="text.light" fontSize="sm">
+                Track your daily nutritional intake
+              </Text>
+            </VStack>
+            <Button
+              onClick={() => onNavigate('log-meal')}
+              colorScheme="teal"
+              variant="outline"
+              size="sm"
+              leftIcon={<FaUtensils />}
+            >
+              Log Meal
+            </Button>
+          </HStack>
 
           <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} gap={6}>
             <Box p={4} bg="brand.100" borderRadius="md" boxShadow="sm">
@@ -441,11 +464,11 @@ const DailyOverview: React.FC<DailyOverviewProps> = ({ data, goals: initialGoals
           <Divider borderColor="brand.100" />
 
           <Box>
-            <Heading as="h3" size="md" mb={3} color="text.dark">
+            <Heading as="h3" size="md" mb={3} color={textColor}>
               Goals Summary
             </Heading>
             {goals ? (
-              <VStack align="flex-start" gap={2} color="text.dark">
+              <VStack align="flex-start" gap={2} color={textColor}>
                 <Text>
                   <Text as="span" fontWeight="semibold">Target Weight:</Text>{' '}
                   {goals.target_weight_kg ? `${goals.target_weight_kg} kg` : 'Not set'}
